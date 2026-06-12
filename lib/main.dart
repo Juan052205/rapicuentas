@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'database_helper.dart';
 import 'configuracion_pantalla.dart';
+import 'clientes_pantalla.dart';
 import 'productos_pantalla.dart';
 
 void main() => runApp(const MyApp());
@@ -11,6 +12,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
+    theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
     home: const NavegacionPrincipal(),
   );
 }
@@ -26,9 +28,9 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
   int _indiceActual = 1;
 
   final List<Widget> _pantallas = [
-    const Center(child: Text("Módulo Clientes (Pendiente Stark)")),
+    const ClientesPantalla(),
     const GeneradorCuentasPantalla(),
-    const ProductosPantalla(), // Aquí llamamos a la nueva pantalla
+    const ProductosPantalla(),
   ];
 
   @override
@@ -55,32 +57,46 @@ class GeneradorCuentasPantalla extends StatefulWidget {
 
 class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
   List<Map<String, dynamic>> _prods = [];
+  List<Map<String, dynamic>> _clientes = [];
   final List<Map<String, dynamic>> _carrito = [];
+
+  Map<String, dynamic>? _clienteSeleccionado;
   double _total = 0.0;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _cargarProductos(); // Se recarga automáticamente al volver a la pestaña
+  void initState() {
+    super.initState();
+    _cargarDatos();
   }
 
-  Future<void> _cargarProductos() async {
-    final data = await DatabaseHelper.instance.obtenerProductosActivos();
+  // Recargar datos cada vez que entramos a la pestaña
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _cargarDatos();
+  }
+
+  Future<void> _cargarDatos() async {
+    final p = await DatabaseHelper.instance.obtenerProductosActivos();
+    final c = await DatabaseHelper.instance.obtenerClientes();
     if (!mounted) return;
-    setState(() => _prods = data);
+    setState(() {
+      _prods = p;
+      _clientes = c;
+    });
   }
 
   void _agregarAlCarrito(Map<String, dynamic> producto) {
+    if (_clienteSeleccionado == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("⚠️ Por favor, selecciona un cliente primero")),
+      );
+      return;
+    }
     setState(() {
       _carrito.add(producto);
       _total += (producto['precio_unitario'] as num).toDouble();
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Agregado: ${producto['nombre_producto']}"),
-        duration: const Duration(seconds: 1),
-      ),
-    );
   }
 
   @override
@@ -90,64 +106,70 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
       actions: [
         IconButton(
           icon: const Icon(Icons.settings),
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ConfiguracionPantalla()),
-          ),
+          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ConfiguracionPantalla())),
         ),
       ],
     ),
     body: Column(
       children: [
+        // SELECCIÓN DE CLIENTE (PROTOCOLO STARK)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          color: Colors.grey.shade100,
+          child: DropdownButtonFormField<int>(
+            decoration: const InputDecoration(
+                labelText: "Seleccionar Cliente",
+                border: OutlineInputBorder()
+            ),
+            // Usamos el ID del cliente (int) en lugar de todo el objeto Map
+            value: _clienteSeleccionado?['id'],
+            items: _clientes.map((c) {
+              return DropdownMenuItem<int>(
+                value: c['id'] as int, // Usamos el ID como valor único
+                child: Text(c['nombre_empresa']?.toString() ?? 'Sin nombre'),
+              );
+            }).toList(),
+            onChanged: (int? nuevoId) {
+              setState(() {
+                // Buscamos el cliente completo en la lista usando el ID
+                _clienteSeleccionado = _clientes.firstWhere(
+                        (c) => c['id'] == nuevoId
+                );
+              });
+            },
+          ),
+        ),
         Expanded(
           child: _prods.isEmpty
-              ? const Center(child: Text("No hay productos registrados."))
+              ? const Center(child: Text("No hay productos disponibles"))
               : ListView.builder(
             itemCount: _prods.length,
             itemBuilder: (context, index) {
-              final producto = _prods[index];
+              final p = _prods[index];
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                elevation: 2,
                 child: ListTile(
                   leading: const Icon(Icons.bakery_dining, color: Colors.orange),
-                  title: Text(
-                    producto['nombre_producto']?.toString() ?? 'Sin nombre',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    '\$${producto['precio_unitario']?.toString() ?? '0'}',
-                    style: const TextStyle(color: Colors.green),
-                  ),
+                  title: Text(p['nombre_producto'] ?? ''),
+                  subtitle: Text("\$${p['precio_unitario']}"),
                   trailing: IconButton(
-                    icon: const Icon(Icons.add_circle_outline, color: Colors.blue),
-                    onPressed: () => _agregarAlCarrito(producto),
+                    icon: const Icon(Icons.add_circle, color: Colors.blue),
+                    onPressed: () => _agregarAlCarrito(p),
                   ),
                 ),
               );
             },
           ),
         ),
+        // TOTALIZADOR
         Container(
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.blue.shade50,
-            border: const Border(top: BorderSide(color: Colors.blue, width: 2)),
-          ),
+          color: Colors.blue.shade50,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                "TOTAL:",
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              Text(
-                "\$$_total",
-                style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green),
-              ),
+              Text("CLIENTE: ${_clienteSeleccionado?['nombre_empresa'] ?? 'N/A'}", style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text("TOTAL: \$$_total", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green)),
             ],
           ),
         ),

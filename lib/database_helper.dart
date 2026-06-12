@@ -35,5 +35,16 @@ class DatabaseHelper {
   Future<int> insertarProducto(Map<String, dynamic> row) async {
   Database db = await instance.database;
   return await db.insert('productos', row); // Asegúrate de que 'productos' sea el nombre correcto de tu +*tabla
-}
+
+
+}// --- MÉTODOS PARA CLIENTES ---
+  Future<int> insertarCliente(Map<String, dynamic> row) async {
+    Database db = await instance.database;
+    return await db.insert('clientes', row);
+  }
+
+  Future<List<Map<String, dynamic>>> obtenerClientes() async {
+    Database db = await instance.database;
+    return await db.query('clientes');
+  }
 }
