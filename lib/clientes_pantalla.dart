@@ -33,6 +33,9 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
       _nombreController.clear();
       _idController.clear();
       _cargarClientes();
+
+      // La corrección está aquí:
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Cliente registrado")));
     }
   }

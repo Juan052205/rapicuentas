@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'database_helper.dart';
-import 'configuracion_pantalla.dart';
 import 'clientes_pantalla.dart';
 import 'productos_pantalla.dart';
+import 'historial_ventas_pantalla.dart';
 
 void main() => runApp(const MyApp());
 
@@ -26,11 +26,11 @@ class NavegacionPrincipal extends StatefulWidget {
 
 class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
   int _indiceActual = 1;
-
   final List<Widget> _pantallas = [
     const ClientesPantalla(),
     const GeneradorCuentasPantalla(),
     const ProductosPantalla(),
+    const HistorialVentasPantalla(), // <--- Nueva pantalla agregada
   ];
 
   @override
@@ -43,6 +43,7 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
         NavigationDestination(icon: Icon(Icons.people), label: 'Clientes'),
         NavigationDestination(icon: Icon(Icons.add_circle), label: 'Cuenta'),
         NavigationDestination(icon: Icon(Icons.bakery_dining), label: 'Productos'),
+        NavigationDestination(icon: Icon(Icons.history), label: 'Historial'), // <--- Nuevo icono
       ],
     ),
   );
@@ -59,20 +60,12 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
   List<Map<String, dynamic>> _prods = [];
   List<Map<String, dynamic>> _clientes = [];
   final List<Map<String, dynamic>> _carrito = [];
-
   Map<String, dynamic>? _clienteSeleccionado;
   double _total = 0.0;
 
   @override
   void initState() {
     super.initState();
-    _cargarDatos();
-  }
-
-  // Recargar datos cada vez que entramos a la pestaña
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
     _cargarDatos();
   }
 
@@ -89,8 +82,7 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
   void _agregarAlCarrito(Map<String, dynamic> producto) {
     if (_clienteSeleccionado == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("⚠️ Por favor, selecciona un cliente primero")),
-      );
+          const SnackBar(content: Text("⚠️ Selecciona un cliente primero")));
       return;
     }
     setState(() {
@@ -99,77 +91,88 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
     });
   }
 
+  Future<void> _finalizarVenta() async {
+    if (_clienteSeleccionado == null || _carrito.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("⚠️ Carrito vacío o cliente no seleccionado")));
+      return;
+    }
+
+    final nuevaVenta = {
+      'cliente_id': _clienteSeleccionado!['id'],
+      'total': _total,
+      'fecha': DateTime.now().toString(),
+      'productos_detalle':
+      _carrito.map((p) => p['nombre_producto']).join(", "),
+    };
+
+    await DatabaseHelper.instance.insertarVenta(nuevaVenta);
+
+    setState(() {
+      _carrito.clear();
+      _total = 0.0;
+      _clienteSeleccionado = null;
+    });
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ Venta finalizada correctamente")));
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text("Nueva Cuenta"),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.settings),
-          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ConfiguracionPantalla())),
-        ),
-      ],
-    ),
+    appBar: AppBar(title: const Text("Nueva Cuenta")),
     body: Column(
       children: [
-        // SELECCIÓN DE CLIENTE (PROTOCOLO STARK)
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          color: Colors.grey.shade100,
+          padding: const EdgeInsets.all(16),
+          // ignore: deprecated_member_use
           child: DropdownButtonFormField<int>(
             decoration: const InputDecoration(
                 labelText: "Seleccionar Cliente",
-                border: OutlineInputBorder()
-            ),
-            // Usamos el ID del cliente (int) en lugar de todo el objeto Map
+                border: OutlineInputBorder()),
             value: _clienteSeleccionado?['id'],
-            items: _clientes.map((c) {
-              return DropdownMenuItem<int>(
-                value: c['id'] as int, // Usamos el ID como valor único
-                child: Text(c['nombre_empresa']?.toString() ?? 'Sin nombre'),
-              );
-            }).toList(),
-            onChanged: (int? nuevoId) {
-              setState(() {
-                // Buscamos el cliente completo en la lista usando el ID
-                _clienteSeleccionado = _clientes.firstWhere(
-                        (c) => c['id'] == nuevoId
-                );
-              });
-            },
+            items: _clientes
+                .map((c) => DropdownMenuItem<int>(
+              value: c['id'] as int,
+              child: Text(c['nombre_empresa'] ?? ''),
+            ))
+                .toList(),
+            onChanged: (int? nuevoId) => setState(() => _clienteSeleccionado =
+                _clientes.firstWhere((c) => c['id'] == nuevoId)),
           ),
         ),
         Expanded(
-          child: _prods.isEmpty
-              ? const Center(child: Text("No hay productos disponibles"))
-              : ListView.builder(
+          child: ListView.builder(
             itemCount: _prods.length,
-            itemBuilder: (context, index) {
-              final p = _prods[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                child: ListTile(
-                  leading: const Icon(Icons.bakery_dining, color: Colors.orange),
-                  title: Text(p['nombre_producto'] ?? ''),
-                  subtitle: Text("\$${p['precio_unitario']}"),
-                  trailing: IconButton(
+            itemBuilder: (c, i) => Card(
+              child: ListTile(
+                title: Text(_prods[i]['nombre_producto']),
+                subtitle: Text("\$${_prods[i]['precio_unitario']}"),
+                trailing: IconButton(
                     icon: const Icon(Icons.add_circle, color: Colors.blue),
-                    onPressed: () => _agregarAlCarrito(p),
-                  ),
-                ),
-              );
-            },
+                    onPressed: () => _agregarAlCarrito(_prods[i])),
+              ),
+            ),
           ),
         ),
-        // TOTALIZADOR
         Container(
           padding: const EdgeInsets.all(20),
           color: Colors.blue.shade50,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("CLIENTE: ${_clienteSeleccionado?['nombre_empresa'] ?? 'N/A'}", style: const TextStyle(fontWeight: FontWeight.bold)),
-              Text("TOTAL: \$$_total", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green)),
+              Text("Total: \$$_total",
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 18)),
+              ElevatedButton.icon(
+                onPressed: _finalizarVenta,
+                icon: const Icon(Icons.check_circle),
+                label: const Text("Finalizar"),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white),
+              ),
             ],
           ),
         ),
