@@ -32,5 +32,8 @@ class DatabaseHelper {
   }
 
   Future<List<Map<String, dynamic>>> obtenerProductosActivos() async => await (await database).query('productos');
-  Future<int> insertarProducto(Map<String, dynamic> row) async => await (await database).insert('productos', row);
+  Future<int> insertarProducto(Map<String, dynamic> row) async {
+  Database db = await instance.database;
+  return await db.insert('productos', row); // Asegúrate de que 'productos' sea el nombre correcto de tu +*tabla
+}
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'database_helper.dart';
 import 'configuracion_pantalla.dart';
+import 'productos_pantalla.dart';
 
 void main() => runApp(const MyApp());
 
@@ -25,9 +26,9 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
   int _indiceActual = 1;
 
   final List<Widget> _pantallas = [
-    const Center(child: Text("Módulo Clientes")),
+    const Center(child: Text("Módulo Clientes (Pendiente Stark)")),
     const GeneradorCuentasPantalla(),
-    const Center(child: Text("Módulo Productos")),
+    const ProductosPantalla(), // Aquí llamamos a la nueva pantalla
   ];
 
   @override
@@ -54,13 +55,13 @@ class GeneradorCuentasPantalla extends StatefulWidget {
 
 class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
   List<Map<String, dynamic>> _prods = [];
-  List<Map<String, dynamic>> _carrito = [];
+  final List<Map<String, dynamic>> _carrito = [];
   double _total = 0.0;
 
   @override
-  void initState() {
-    super.initState();
-    _cargarProductos();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _cargarProductos(); // Se recarga automáticamente al volver a la pestaña
   }
 
   Future<void> _cargarProductos() async {
