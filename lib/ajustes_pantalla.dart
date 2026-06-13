@@ -10,6 +10,10 @@ class AjustesScreen extends StatefulWidget {
 
 class _AjustesScreenState extends State<AjustesScreen> {
   final TextEditingController _nombreController = TextEditingController();
+  final TextEditingController _nitController = TextEditingController();
+  final TextEditingController _dirController = TextEditingController();
+
+  // ¡FALTABA ESTA VARIABLE! Sin ella, el código no compila
   bool _isLoading = false;
 
   @override
@@ -19,73 +23,64 @@ class _AjustesScreenState extends State<AjustesScreen> {
   }
 
   Future<void> _cargarAjustes() async {
-    setState(() => _isLoading = true);
     final ajustes = await DatabaseHelper.instance.obtenerDatosPago();
-    _nombreController.text = ajustes['nombre_negocio'] ?? 'Mi Negocio';
-    setState(() => _isLoading = false);
+    _nombreController.text = ajustes['nombre_negocio'] ?? '';
+    _nitController.text = ajustes['nit'] ?? '';
+    _dirController.text = ajustes['direccion'] ?? '';
   }
 
   Future<void> _guardarCambios() async {
-    if (_nombreController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("⚠️ El nombre no puede estar vacío")),
+    setState(() => _isLoading = true);
+
+    try {
+      await DatabaseHelper.instance.actualizarConfiguracion(
+        _nombreController.text,
+        _nitController.text,
+        _dirController.text,
       );
-      return;
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("✅ Configuración guardada"),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Error: $e"), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-
-    await DatabaseHelper.instance.actualizarNombreNegocio(_nombreController.text);
-
-    if (!mounted) return;
-
-    // Feedback visual profesional
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("✅ Branding actualizado correctamente"),
-        backgroundColor: Colors.green,
-      ),
-    );
-
-    // Volvemos atrás tras guardar
-    Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Configuración de Negocio"),
-        elevation: 2,
-      ),
+      appBar: AppBar(title: const Text("Ajustes del Negocio")),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              "Personalización de Branding",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _nombreController,
-              decoration: const InputDecoration(
-                labelText: "Nombre del Negocio en PDF",
-                prefixIcon: Icon(Icons.store),
-                border: OutlineInputBorder(),
-                hintText: "Ej: Almojábanas El Tío",
-              ),
-            ),
-            const SizedBox(height: 30),
-            ElevatedButton.icon(
-              onPressed: _guardarCambios,
-              icon: const Icon(Icons.save),
-              label: const Text("GUARDAR CONFIGURACIÓN"),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                backgroundColor: Colors.blueGrey.shade900,
-                foregroundColor: Colors.white,
+            TextField(controller: _nombreController, decoration: const InputDecoration(labelText: "Nombre Negocio", border: OutlineInputBorder(), prefixIcon: Icon(Icons.store))),
+            const SizedBox(height: 15),
+            TextField(controller: _nitController, decoration: const InputDecoration(labelText: "NIT", border: OutlineInputBorder(), prefixIcon: Icon(Icons.badge))),
+            const SizedBox(height: 15),
+            TextField(controller: _dirController, decoration: const InputDecoration(labelText: "Dirección", border: OutlineInputBorder(), prefixIcon: Icon(Icons.location_on))),
+            const SizedBox(height: 25),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _guardarCambios,
+                child: const Text("GUARDAR CAMBIOS", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
