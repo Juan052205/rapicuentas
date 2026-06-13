@@ -32,21 +32,29 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
         : ListView.builder(
       itemCount: _ventas.length,
       itemBuilder: (context, index) {
-        final v = _ventas[index]; // Definimos 'v' aquí
+        final v = _ventas[index];
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           child: ListTile(
             leading: const Icon(Icons.receipt_long, color: Colors.green),
             title: Text("Cliente: ${v['nombre_empresa']}"),
-            subtitle: Text("Fecha: ${v['fecha'].toString().substring(0, 16)}\nProd: ${v['productos_detalle']}"),
-            // Ponemos el PDF y el Total juntos en el trailing usando una Row
+            subtitle: Text(
+                "Fecha: ${v['fecha'].toString().substring(0, 16)}\nProd: ${v['productos_detalle']}"),
             trailing: Row(
-              mainAxisSize: MainAxisSize.min, // Esto es clave para que no ocupe todo el ancho
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text("\$${v['total']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(
+                  "\$${v['total']}",
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16),
+                ),
                 IconButton(
                   icon: const Icon(Icons.picture_as_pdf, color: Colors.red),
-                  onPressed: () => PdfGenerator.generarFactura(v),
+                  onPressed: () async {
+                    // Usamos 'v' que es el registro de la venta actual
+                    // Ya no necesitas declarar 'nombre' aquí, el PDF lo hace internamente.
+                    await PdfGenerator.generarFactura(v);
+                  },
                 ),
               ],
             ),

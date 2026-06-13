@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'dart:convert'; // NECESARIO PARA LA ESTRUCTURA JSON
 import 'database_helper.dart';
 import 'clientes_pantalla.dart';
 import 'productos_pantalla.dart';
 import 'historial_ventas_pantalla.dart';
+import 'ajustes_pantalla.dart'; // NECESARIO PARA QUE EL BOTÓN FUNCIONE
 
 void main() => runApp(const MyApp());
 
@@ -30,7 +32,7 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
     const ClientesPantalla(),
     const GeneradorCuentasPantalla(),
     const ProductosPantalla(),
-    const HistorialVentasPantalla(), // <--- Nueva pantalla agregada
+    const HistorialVentasPantalla(),
   ];
 
   @override
@@ -38,12 +40,13 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
     body: _pantallas[_indiceActual],
     bottomNavigationBar: NavigationBar(
       selectedIndex: _indiceActual,
-      onDestinationSelected: (int index) => setState(() => _indiceActual = index),
+      onDestinationSelected: (int index) =>
+          setState(() => _indiceActual = index),
       destinations: const [
         NavigationDestination(icon: Icon(Icons.people), label: 'Clientes'),
         NavigationDestination(icon: Icon(Icons.add_circle), label: 'Cuenta'),
-        NavigationDestination(icon: Icon(Icons.bakery_dining), label: 'Productos'),
-        NavigationDestination(icon: Icon(Icons.history), label: 'Historial'), // <--- Nuevo icono
+        NavigationDestination(icon: Icon(Icons.bakery_dining), label: 'Prod'),
+        NavigationDestination(icon: Icon(Icons.history), label: 'Historial'),
       ],
     ),
   );
@@ -62,6 +65,9 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
   final List<Map<String, dynamic>> _carrito = [];
   Map<String, dynamic>? _clienteSeleccionado;
   double _total = 0.0;
+
+  String _metodoSeleccionado = 'Efectivo';
+  final List<String> _metodos = ['Efectivo', 'Nequi', 'Daviplata', 'Cuenta Bancaria'];
 
   @override
   void initState() {
@@ -98,48 +104,103 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
       return;
     }
 
-    final nuevaVenta = {
-      'cliente_id': _clienteSeleccionado!['id'],
-      'total': _total,
-      'fecha': DateTime.now().toString(),
-      'productos_detalle':
-      _carrito.map((p) => p['nombre_producto']).join(", "),
-    };
+    // LÓGICA PROFESIONAL JSON
+    final Map<String, Map<String, dynamic>> resumen = {};
+    for (var p in _carrito) {
+      String nombre = p['nombre_producto'];
+      double precio = (p['precio_unitario'] as num).toDouble();
+      if (resumen.containsKey(nombre)) {
+        resumen[nombre]!['cant'] += 1;
+        resumen[nombre]!['total'] = (resumen[nombre]!['cant'] as int) * precio;
+      } else {
+        resumen[nombre] = {
+          'nombre': nombre,
+          'cant': 1,
+          'precio': precio,
+          'total': precio
+        };
+      }
+    }
 
-    await DatabaseHelper.instance.insertarVenta(nuevaVenta);
+    String jsonProductos = jsonEncode(resumen.values.toList());
 
-    setState(() {
-      _carrito.clear();
-      _total = 0.0;
-      _clienteSeleccionado = null;
-    });
+    try {
+      final nuevaVenta = {
+        'cliente_id': _clienteSeleccionado!['id'],
+        'total': _total,
+        'fecha': DateTime.now().toString(),
+        'productos_detalle': jsonProductos,
+        'metodo_pago': _metodoSeleccionado,
+      };
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Venta finalizada correctamente")));
+      await DatabaseHelper.instance.insertarVenta(nuevaVenta);
+
+      setState(() {
+        _carrito.clear();
+        _total = 0.0;
+        _clienteSeleccionado = null;
+        _metodoSeleccionado = 'Efectivo';
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("✅ Venta registrada con éxito")));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ Error al guardar: $e")));
+    }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text("Nueva Cuenta")),
+    appBar: AppBar(
+      title: const Text("Nueva Cuenta"),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.settings),
+          onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const AjustesScreen())),
+        ),
+      ],
+    ),
     body: Column(
       children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          // ignore: deprecated_member_use
-          child: DropdownButtonFormField<int>(
-            decoration: const InputDecoration(
-                labelText: "Seleccionar Cliente",
-                border: OutlineInputBorder()),
-            value: _clienteSeleccionado?['id'],
-            items: _clientes
-                .map((c) => DropdownMenuItem<int>(
-              value: c['id'] as int,
-              child: Text(c['nombre_empresa'] ?? ''),
-            ))
-                .toList(),
-            onChanged: (int? nuevoId) => setState(() => _clienteSeleccionado =
-                _clientes.firstWhere((c) => c['id'] == nuevoId)),
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  decoration: const InputDecoration(
+                      labelText: "Cliente", border: OutlineInputBorder()),
+                  value: _clienteSeleccionado?['id'],
+                  items: _clientes
+                      .map((c) => DropdownMenuItem<int>(
+                    value: c['id'] as int,
+                    child: Text(c['nombre_empresa'] ?? ''),
+                  ))
+                      .toList(),
+                  onChanged: (int? nuevoId) => setState(() =>
+                  _clienteSeleccionado = _clientes
+                      .firstWhere((c) => c['id'] == nuevoId)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(
+                      labelText: "Pago", border: OutlineInputBorder()),
+                  isExpanded: true,
+                  value: _metodoSeleccionado,
+                  items: _metodos
+                      .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                      .toList(),
+                  onChanged: (val) => setState(() => _metodoSeleccionado = val!),
+                ),
+              ),
+            ],
           ),
         ),
         Expanded(
