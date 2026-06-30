@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'database_helper.dart';
 import 'pdf_generator.dart';
+import 'generadorcuentaspantalla.dart'; // <--- ESTO ES LO QUE TE FALTABA
 
 class HistorialVentasPantalla extends StatefulWidget {
   const HistorialVentasPantalla({super.key});
@@ -36,24 +37,48 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           child: ListTile(
-            leading: const Icon(Icons.receipt_long, color: Colors.green),
-            title: Text("Cliente: ${v['nombre_empresa']}"),
-            subtitle: Text(
-                "Fecha: ${v['fecha'].toString().substring(0, 16)}\nProd: ${v['productos_detalle']}"),
+            title: Text(v['nombre_empresa']),
+            subtitle: Text("Total: \$${v['total']}\nFecha: ${v['fecha']}"),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  "\$${v['total']}",
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 16),
-                ),
+                // BOTÓN REUTILIZAR
                 IconButton(
-                  icon: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                  icon: const Icon(Icons.copy_all, color: Colors.blue),
+                  onPressed: () {
+                    // Al navegar, enviamos el registro 'v' completo
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => GeneradorCuentasPantalla(ventaAClonar: v),
+                      ),
+                    );
+                  },
+                ),
+                // BOTÓN PDF
+                IconButton(
+                  icon: const Icon(Icons.picture_as_pdf, color: Colors.green),
+                  onPressed: () async => await PdfGenerator.generarFactura(v, false, 0.0),
+                ),
+                // BOTÓN ELIMINAR
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
                   onPressed: () async {
-                    // Usamos 'v' que es el registro de la venta actual
-                    // Ya no necesitas declarar 'nombre' aquí, el PDF lo hace internamente.
-                    await PdfGenerator.generarFactura(v);
+                    bool? confirm = await showDialog(
+                      context: context,
+                      builder: (c) => AlertDialog(
+                        title: const Text("Eliminar"),
+                        content: const Text("¿Deseas borrar esta venta?"),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("No")),
+                          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text("Sí")),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      await DatabaseHelper.instance.eliminarVenta(v['id']);
+                      _cargarHistorial();
+                    }
                   },
                 ),
               ],
@@ -61,10 +86,6 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
           ),
         );
       },
-    ),
-    floatingActionButton: FloatingActionButton(
-      onPressed: _cargarHistorial,
-      child: const Icon(Icons.refresh),
     ),
   );
 }

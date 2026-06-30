@@ -34,9 +34,7 @@ class _AjustesScreenState extends State<AjustesScreen> {
 
     try {
       await DatabaseHelper.instance.actualizarConfiguracion(
-        _nombreController.text,
-        _nitController.text,
-        _dirController.text,
+          _nombreController.text, _nitController.text, _dirController.text, 19.0
       );
 
       if (!mounted) return;
