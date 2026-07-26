@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'dart:convert'; // NECESARIO PARA LA ESTRUCTURA JSON
+import 'dart:convert';
 import 'database_helper.dart';
 import 'clientes_pantalla.dart';
 import 'productos_pantalla.dart';
 import 'historial_ventas_pantalla.dart';
-import 'ajustes_pantalla.dart'; // NECESARIO PARA QUE EL BOTÓN FUNCIONE
+import 'ajustes_pantalla.dart';
 
 void main() => runApp(const MyApp());
 
@@ -85,6 +85,11 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
     });
   }
 
+  // Cuenta cuántas veces está un producto en el carrito
+  int _contarEnCarrito(String nombreProducto) {
+    return _carrito.where((item) => item['nombre_producto'] == nombreProducto).length;
+  }
+
   void _agregarAlCarrito(Map<String, dynamic> producto) {
     if (_clienteSeleccionado == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -92,9 +97,25 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
       return;
     }
     setState(() {
-      _carrito.add(producto);
+      _carrito.add({
+        'nombre_producto': producto['nombre_producto'],
+        'precio_unitario': (producto['precio_unitario'] as num),
+      });
       _total += (producto['precio_unitario'] as num).toDouble();
     });
+  }
+
+  void _quitarDelCarrito(Map<String, dynamic> producto) {
+    if (_clienteSeleccionado == null) return;
+
+    final index = _carrito.indexWhere((item) => item['nombre_producto'] == producto['nombre_producto']);
+    if (index != -1) {
+      setState(() {
+        _carrito.removeAt(index);
+        _total -= (producto['precio_unitario'] as num).toDouble();
+        if (_total < 0) _total = 0.0;
+      });
+    }
   }
 
   Future<void> _finalizarVenta() async {
@@ -104,7 +125,6 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
       return;
     }
 
-    // LÓGICA PROFESIONAL JSON
     final Map<String, Map<String, dynamic>> resumen = {};
     for (var p in _carrito) {
       String nombre = p['nombre_producto'];
@@ -206,15 +226,36 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
         Expanded(
           child: ListView.builder(
             itemCount: _prods.length,
-            itemBuilder: (c, i) => Card(
-              child: ListTile(
-                title: Text(_prods[i]['nombre_producto']),
-                subtitle: Text("\$${_prods[i]['precio_unitario']}"),
-                trailing: IconButton(
-                    icon: const Icon(Icons.add_circle, color: Colors.blue),
-                    onPressed: () => _agregarAlCarrito(_prods[i])),
-              ),
-            ),
+            itemBuilder: (c, i) {
+              final producto = _prods[i];
+              final cantidadSeleccionada = _contarEnCarrito(producto['nombre_producto']);
+
+              return Card(
+                child: ListTile(
+                  title: Text(producto['nombre_producto']),
+                  subtitle: Text("\$${producto['precio_unitario']}"),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (cantidadSeleccionada > 0) ...[
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle, color: Colors.red),
+                          onPressed: () => _quitarDelCarrito(producto),
+                        ),
+                        Text(
+                          '$cantidadSeleccionada',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                      ],
+                      IconButton(
+                        icon: const Icon(Icons.add_circle, color: Colors.blue),
+                        onPressed: () => _agregarAlCarrito(producto),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
         ),
         Container(

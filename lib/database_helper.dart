@@ -17,7 +17,21 @@ class DatabaseHelper {
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getApplicationDocumentsDirectory();
     final path = join(dbPath.path, filePath);
-    return await openDatabase(path, version: 11, onCreate: _onCreate);
+
+    // Incrementamos la versión a 12 para forzar la actualización
+    return await openDatabase(
+      path,
+      version: 12,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+    );
+  }
+
+  // Lógica de actualización: agrega la columna faltante si la app ya existía
+  Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 12) {
+      await db.execute('ALTER TABLE ajustes_globales ADD COLUMN iva_porcentaje REAL DEFAULT 19.0');
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -52,7 +66,12 @@ class DatabaseHelper {
 
   Future<void> actualizarConfiguracion(String n, String nit, String dir, double iva) async {
     final db = await database;
-    await db.update('ajustes_globales', {'nombre_negocio': n, 'nit': nit, 'direccion': dir, 'iva_porcentaje': iva}, where: 'id = 1');
+    await db.update('ajustes_globales', {
+      'nombre_negocio': n,
+      'nit': nit,
+      'direccion': dir,
+      'iva_porcentaje': iva
+    }, where: 'id = 1');
   }
 
   Future<void> actualizarDatosPago(String n, String d, String a) async {
