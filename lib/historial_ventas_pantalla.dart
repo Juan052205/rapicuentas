@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'database_helper.dart';
@@ -27,59 +28,126 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
     setState(() => _ventas = data);
   }
 
-  void _mostrarModuloAnalitico(BuildContext context) {
+  Future<void> _mostrarModuloAnalitico(BuildContext context) async {
+    // Consultamos si el usuario es Pro para habilitar el reporte avanzado
+    final ajustes = await DatabaseHelper.instance.obtenerDatosPago();
+    int esPro = ajustes['es_pro'] ?? 0;
+
     double totalVentasGlobal = _ventas.fold(0.0, (sum, item) => sum + ((item['total'] as num?)?.toDouble() ?? 0.0));
     int cantidadVentas = _ventas.length;
     double promedioVenta = cantidadVentas > 0 ? totalVentasGlobal / cantidadVentas : 0.0;
 
+    // Procesar métodos de pago y productos más vendidos si es Pro
+    Map<String, double> metodosPagoConteo = {};
+    Map<String, int> productosTop = {};
+
+    if (esPro == 1) {
+      for (var v in _ventas) {
+        String metodo = v['metodo_pago'] ?? 'Efectivo';
+        double val = (v['total'] as num?)?.toDouble() ?? 0.0;
+        metodosPagoConteo[metodo] = (metodosPagoConteo[metodo] ?? 0.0) + val;
+
+        try {
+          if (v['productos_detalle'] != null) {
+            List<dynamic> prods = jsonDecode(v['productos_detalle']);
+            for (var p in prods) {
+              String nombre = (p['nombre'] ?? p['nombre_producto'] ?? 'Producto').toString();
+              int cant = (p['cant'] as num?)?.toInt() ?? 1;
+              productosTop[nombre] = (productosTop[nombre] ?? 0) + cant;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    if (!context.mounted) return;
+
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.analytics, color: Colors.blue),
-            SizedBox(width: 8),
+            Icon(Icons.analytics, color: esPro == 1 ? Colors.blue : Colors.orange),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
-                "Rendimiento de Ventas",
+                esPro == 1 ? "Tablero Analítico Pro" : "Resumen de Ventas",
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 18),
+                style: const TextStyle(fontSize: 18),
               ),
             ),
           ],
         ),
         content: SizedBox(
           width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("Total Facturado: \$${totalVentasGlobal.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              const SizedBox(height: 6),
-              Text("Comprobantes Emitidos: $cantidadVentas"),
-              Text("Ticket Promedio: \$${promedioVenta.toStringAsFixed(0)}"),
-              const Divider(height: 20),
-              const Text("Comparativa de Rendimiento:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              const SizedBox(height: 10),
-              LinearProgressIndicator(
-                value: cantidadVentas > 0 ? 1.0 : 0.0,
-                backgroundColor: Colors.grey.shade200,
-                color: Colors.green,
-                minHeight: 12,
-              ),
-              const SizedBox(height: 8),
-              const Text("Estado del sistema: Óptimo y sincronizado.", style: TextStyle(fontSize: 11, color: Colors.grey)),
-            ],
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Total Facturado: \$${totalVentasGlobal.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 6),
+                Text("Comprobantes Emitidos: $cantidadVentas"),
+                Text("Ticket Promedio: \$${promedioVenta.toStringAsFixed(0)}"),
+                const Divider(height: 20),
+
+                if (esPro == 1) ...[
+                  const Text("📊 Desglose por Método de Pago:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueAccent)),
+                  const SizedBox(height: 6),
+                  if (metodosPagoConteo.isEmpty)
+                    const Text("Sin datos suficientes", style: TextStyle(fontSize: 11, color: Colors.grey))
+                  else
+                    ...metodosPagoConteo.entries.map((e) => Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: Text("• ${e.key}: \$${e.value.toStringAsFixed(0)}", style: const TextStyle(fontSize: 12)),
+                    )),
+                  const SizedBox(height: 12),
+                  const Text("🏆 Top Productos Vendidos:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueAccent)),
+                  const SizedBox(height: 6),
+                  if (productosTop.isEmpty)
+                    const Text("Sin datos suficientes", style: TextStyle(fontSize: 11, color: Colors.grey))
+                  else
+                    ...productosTop.entries.take(3).map((e) => Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: Text("• ${e.key} (${e.value} unidades)", style: const TextStyle(fontSize: 12)),
+                    )),
+                ] else ...[
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.amber.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("🔒 Funcionalidad Exclusiva Pro", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.amber.shade900)),
+                        const SizedBox(height: 4),
+                        const Text("Desbloquea el desglose por métodos de pago, top de productos más vendidos y analíticas avanzadas haciéndote Pro.", style: TextStyle(fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
         actions: [
+          if (esPro == 0)
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Colors.blue),
+              onPressed: () {
+                Navigator.pop(c);
+              },
+              child: const Text("Desbloquear Pro"),
+            ),
           TextButton(onPressed: () => Navigator.pop(c), child: const Text("Cerrar")),
         ],
       ),
     );
   }
 
-  // 👈 Método actualizado para compartir el PDF real adjunto
   Future<void> _compartirFacturaPdfHistorial(Map<String, dynamic> v) async {
     try {
       await PdfGenerator.compartirFacturaPdf(v, false, 0.0);
