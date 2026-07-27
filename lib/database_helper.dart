@@ -20,7 +20,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 15,
+      version: 17, // 👈 Actualizamos la versión a 17
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -39,6 +39,14 @@ class DatabaseHelper {
     if (oldVersion < 15) {
       await db.execute('ALTER TABLE ajustes_globales ADD COLUMN intentos_clonacion_restantes INTEGER DEFAULT 3');
     }
+    if (oldVersion < 16) {
+      await db.execute('ALTER TABLE ventas ADD COLUMN observaciones TEXT DEFAULT ""');
+    }
+    // 👈 Nueva migración para Fase 3.5 (Resolución DIAN y Consecutivo)
+    if (oldVersion < 17) {
+      await db.execute('ALTER TABLE ajustes_globales ADD COLUMN resolucion_dian TEXT DEFAULT ""');
+      await db.execute('ALTER TABLE ajustes_globales ADD COLUMN consecutivo_factura INTEGER DEFAULT 1');
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -50,19 +58,34 @@ class DatabaseHelper {
         nequi TEXT, daviplata TEXT, cuenta_ahorros TEXT, 
         nombre_negocio TEXT, nit TEXT, direccion TEXT, iva_porcentaje REAL,
         es_pro INTEGER DEFAULT 0,
-        intentos_clonacion_restantes INTEGER DEFAULT 3
+        intentos_clonacion_restantes INTEGER DEFAULT 3,
+        video_usado INTEGER DEFAULT 0,
+        resolucion_dian TEXT DEFAULT "",
+        consecutivo_factura INTEGER DEFAULT 1
       )
     ''');
     await db.execute('''
       CREATE TABLE ventas (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         cliente_id INTEGER, total REAL, fecha TEXT, 
-        productos_detalle TEXT, metodo_pago TEXT, tipo_documento TEXT
+        productos_detalle TEXT, metodo_pago TEXT, tipo_documento TEXT,
+        observaciones TEXT
       )
     ''');
     await db.insert('ajustes_globales', {
-      'id': 1, 'nombre_negocio': 'Mi Negocio', 'nit': 'N/A', 'direccion': 'Sin dirección',
-      'iva_porcentaje': 19.0, 'nequi': '', 'daviplata': '', 'cuenta_ahorros': '', 'es_pro': 0, 'intentos_clonacion_restantes': 3
+      'id': 1,
+      'nombre_negocio': 'Mi Negocio',
+      'nit': 'N/A',
+      'direccion': 'Sin dirección',
+      'iva_porcentaje': 19.0,
+      'nequi': '',
+      'daviplata': '',
+      'cuenta_ahorros': '',
+      'es_pro': 0,
+      'intentos_clonacion_restantes': 3,
+      'video_usado': 0,
+      'resolucion_dian': '',
+      'consecutivo_factura': 1
     });
   }
 
@@ -130,7 +153,6 @@ class DatabaseHelper {
     );
   }
 
-  // Corregido: apuntas a 'ajustes_globales' en lugar de 'ajustes'
   Future<void> otorgarIntentosExtraPorAd() async {
     final db = await database;
     await db.rawUpdate('''
@@ -138,6 +160,32 @@ class DatabaseHelper {
       SET intentos_clonacion_restantes = intentos_clonacion_restantes + 1
       WHERE id = 1
     ''');
+  }
+
+  // Actualizar los datos de resolución fiscal DIAN
+  Future<void> actualizarResolucionDian(String resolucion) async {
+    final db = await database;
+    await db.update(
+      'ajustes_globales',
+      {'resolucion_dian': resolucion},
+      where: 'id = 1',
+    );
+  }
+
+  // Obtener el siguiente consecutivo y autoincrementarlo
+  Future<int> obtenerYIncrementarConsecutivo() async {
+    final db = await database;
+    final res = await db.query('ajustes_globales', columns: ['consecutivo_factura'], where: 'id = 1');
+    if (res.isNotEmpty) {
+      int actual = res.first['consecutivo_factura'] as int? ?? 1;
+      await db.update(
+        'ajustes_globales',
+        {'consecutivo_factura': actual + 1},
+        where: 'id = 1',
+      );
+      return actual;
+    }
+    return 1;
   }
 
   Future<int> insertarVenta(Map<String, dynamic> row) async => await (await database).insert('ventas', row);
@@ -150,6 +198,29 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> obtenerHistorialVentas() async {
     final db = await database;
     return await db.rawQuery('SELECT v.*, c.nombre_empresa FROM ventas v JOIN clientes c ON v.cliente_id = c.id ORDER BY v.fecha DESC');
+  }
+
+  // Verificar si el usuario aún tiene disponible el beneficio del video único
+  Future<bool> puedeVerVideoRecompensa() async {
+    final db = await database;
+    final resultado = await db.query('ajustes_globales', columns: ['video_usado'], where: 'id = 1');
+    if (resultado.isNotEmpty) {
+      // Si 'video_usado' es 0 o null, aún puede ver el video. Si es 1, ya lo usó.
+      int usado = resultado.first['video_usado'] as int? ?? 0;
+      return usado == 0;
+    }
+    return true;
+  }
+
+// Marcar el video como ya utilizado
+  Future<void> marcarVideoComoUsado() async {
+    final db = await database;
+    await db.update(
+      'ajustes_globales',
+      {'video_usado': 1},
+      where: 'id = ?',
+      whereArgs: [1],
+    );
   }
 
   Future<int> insertarCliente(Map<String, dynamic> row) async => await (await database).insert('clientes', row);

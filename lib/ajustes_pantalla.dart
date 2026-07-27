@@ -12,8 +12,8 @@ class _AjustesScreenState extends State<AjustesScreen> {
   final TextEditingController _nombreController = TextEditingController();
   final TextEditingController _nitController = TextEditingController();
   final TextEditingController _dirController = TextEditingController();
+  final TextEditingController _resolucionDianController = TextEditingController();
 
-  // ¡FALTABA ESTA VARIABLE! Sin ella, el código no compila
   bool _isLoading = false;
 
   @override
@@ -27,6 +27,7 @@ class _AjustesScreenState extends State<AjustesScreen> {
     _nombreController.text = ajustes['nombre_negocio'] ?? '';
     _nitController.text = ajustes['nit'] ?? '';
     _dirController.text = ajustes['direccion'] ?? '';
+    _resolucionDianController.text = ajustes['resolucion_dian'] ?? '';
   }
 
   Future<void> _guardarCambios() async {
@@ -36,12 +37,13 @@ class _AjustesScreenState extends State<AjustesScreen> {
       await DatabaseHelper.instance.actualizarConfiguracion(
           _nombreController.text, _nitController.text, _dirController.text, 19.0
       );
+      await DatabaseHelper.instance.actualizarResolucionDian(_resolucionDianController.text);
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("✅ Configuración guardada"),
+          content: Text("✅ Configuración y parámetros DIAN guardados"),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
         ),
@@ -65,23 +67,34 @@ class _AjustesScreenState extends State<AjustesScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Padding(
         padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            TextField(controller: _nombreController, decoration: const InputDecoration(labelText: "Nombre Negocio", border: OutlineInputBorder(), prefixIcon: Icon(Icons.store))),
-            const SizedBox(height: 15),
-            TextField(controller: _nitController, decoration: const InputDecoration(labelText: "NIT", border: OutlineInputBorder(), prefixIcon: Icon(Icons.badge))),
-            const SizedBox(height: 15),
-            TextField(controller: _dirController, decoration: const InputDecoration(labelText: "Dirección", border: OutlineInputBorder(), prefixIcon: Icon(Icons.location_on))),
-            const SizedBox(height: 25),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _guardarCambios,
-                child: const Text("GUARDAR CAMBIOS", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              TextField(controller: _nombreController, decoration: const InputDecoration(labelText: "Nombre Negocio", border: OutlineInputBorder(), prefixIcon: Icon(Icons.store))),
+              const SizedBox(height: 15),
+              TextField(controller: _nitController, decoration: const InputDecoration(labelText: "NIT", border: OutlineInputBorder(), prefixIcon: Icon(Icons.badge))),
+              const SizedBox(height: 15),
+              TextField(controller: _dirController, decoration: const InputDecoration(labelText: "Dirección", border: OutlineInputBorder(), prefixIcon: Icon(Icons.location_on))),
+              const SizedBox(height: 15),
+              TextField(
+                controller: _resolucionDianController,
+                decoration: const InputDecoration(
+                  labelText: "Resolución DIAN / Facturación Autorizada",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.verified_outlined),
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 25),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _guardarCambios,
+                  child: const Text("GUARDAR CAMBIOS", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
