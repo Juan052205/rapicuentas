@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'dart:convert';
 import 'database_helper.dart';
 import 'clientes_pantalla.dart';
@@ -7,7 +8,11 @@ import 'historial_ventas_pantalla.dart';
 import 'ajustes_pantalla.dart';
 import 'pdf_generator.dart';
 
-void main() => runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await MobileAds.instance.initialize();
+  runApp(const MyApp());
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -54,7 +59,8 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
 }
 
 class GeneradorCuentasPantalla extends StatefulWidget {
-  const GeneradorCuentasPantalla({super.key});
+  final Map<String, dynamic>? ventaAClonar;
+  const GeneradorCuentasPantalla({super.key, this.ventaAClonar});
 
   @override
   State<GeneradorCuentasPantalla> createState() => _GeneradorCuentasPantallaState();
@@ -76,16 +82,56 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
   @override
   void initState() {
     super.initState();
-    _cargarDatos();
+    _cargarDatosYClonacion();
   }
 
-  Future<void> _cargarDatos() async {
+  Future<void> _cargarDatosYClonacion() async {
     final p = await DatabaseHelper.instance.obtenerProductosActivos();
     final c = await DatabaseHelper.instance.obtenerClientes();
+
     if (!mounted) return;
     setState(() {
       _prods = p;
       _clientes = c;
+
+      // Si nos pasaron una venta para clonar, la inyectamos limpiamente en el carrito
+      if (widget.ventaAClonar != null) {
+        final venta = widget.ventaAClonar!;
+        _metodoSeleccionado = venta['metodo_pago'] ?? 'Efectivo';
+        _tipoDocumentoSeleccionado = venta['tipo_documento'] ?? 'COMPROBANTE DE VENTA';
+
+        try {
+          _clienteSeleccionado = _clientes.firstWhere((cli) => cli['id'] == venta['cliente_id']);
+        } catch (_) {}
+
+        if (venta['productos_detalle'] != null) {
+          try {
+            final List<dynamic> productosDecodificados = jsonDecode(venta['productos_detalle']);
+            _total = 0.0;
+            _carrito.clear();
+
+            for (var item in productosDecodificados) {
+              String nombre = (item['nombre'] ?? item['nombre_producto'] ?? 'Producto').toString();
+              int cantidad = (item['cant'] as num?)?.toInt() ?? 1;
+              double precio = ((item['precio'] ?? item['precio_unitario'] ?? 0) as num).toDouble();
+
+              if (item.containsKey('total') && precio == 0 && cantidad > 0) {
+                precio = (item['total'] as num).toDouble() / cantidad;
+              }
+
+              for (int i = 0; i < cantidad; i++) {
+                _carrito.add({
+                  'nombre_producto': nombre,
+                  'precio_unitario': precio,
+                });
+                _total += precio;
+              }
+            }
+          } catch (e) {
+            debugPrint("Error al decodificar clonación: $e");
+          }
+        }
+      }
     });
   }
 
@@ -214,7 +260,6 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  // Asignamos más espacio (flex 6) al tipo de documento por el texto largo
                   Expanded(
                     flex: 6,
                     child: DropdownButtonFormField<String>(
@@ -241,7 +286,6 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // Menos espacio (flex 4) para el método de pago
                   Expanded(
                     flex: 4,
                     child: DropdownButtonFormField<String>(
