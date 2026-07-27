@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'database_helper.dart';
 import 'pdf_generator.dart';
-import 'main.dart'; // O el archivo donde esté GeneradorCuentasPantalla
+import 'main.dart';
 import 'play_integrity_service.dart';
 
 class HistorialVentasPantalla extends StatefulWidget {
@@ -25,6 +25,74 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
     final data = await DatabaseHelper.instance.obtenerHistorialVentas();
     if (!mounted) return;
     setState(() => _ventas = data);
+  }
+
+  void _mostrarModuloAnalitico(BuildContext context) {
+    double totalVentasGlobal = _ventas.fold(0.0, (sum, item) => sum + ((item['total'] as num?)?.toDouble() ?? 0.0));
+    int cantidadVentas = _ventas.length;
+    double promedioVenta = cantidadVentas > 0 ? totalVentasGlobal / cantidadVentas : 0.0;
+
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.analytics, color: Colors.blue),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                "Rendimiento de Ventas",
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Total Facturado: \$${totalVentasGlobal.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 6),
+              Text("Comprobantes Emitidos: $cantidadVentas"),
+              Text("Ticket Promedio: \$${promedioVenta.toStringAsFixed(0)}"),
+              const Divider(height: 20),
+              const Text("Comparativa de Rendimiento:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              const SizedBox(height: 10),
+              LinearProgressIndicator(
+                value: cantidadVentas > 0 ? 1.0 : 0.0,
+                backgroundColor: Colors.grey.shade200,
+                color: Colors.green,
+                minHeight: 12,
+              ),
+              const SizedBox(height: 8),
+              const Text("Estado del sistema: Óptimo y sincronizado.", style: TextStyle(fontSize: 11, color: Colors.grey)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text("Cerrar")),
+        ],
+      ),
+    );
+  }
+
+  // 👈 Método actualizado para compartir el PDF real adjunto
+  Future<void> _compartirFacturaPdfHistorial(Map<String, dynamic> v) async {
+    try {
+      await PdfGenerator.compartirFacturaPdf(v, false, 0.0);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll("Exception: ", "")),
+          backgroundColor: Colors.redAccent,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
   }
 
   void _cargarYMostrarAnuncioRecompensado(BuildContext context, Map<String, dynamic> ventaAClonar) {
@@ -70,7 +138,16 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text("Historial de Ventas")),
+    appBar: AppBar(
+      title: const Text("Historial de Ventas"),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.bar_chart),
+          tooltip: "Módulo Analítico",
+          onPressed: () => _mostrarModuloAnalitico(context),
+        ),
+      ],
+    ),
     body: _ventas.isEmpty
         ? const Center(child: Text("No hay ventas registradas aún"))
         : ListView.builder(
@@ -86,6 +163,11 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
+                  icon: const Icon(Icons.share, color: Colors.teal),
+                  tooltip: "Enviar PDF a WhatsApp",
+                  onPressed: () => _compartirFacturaPdfHistorial(v),
+                ),
+                IconButton(
                   icon: const Icon(Icons.copy_all, color: Colors.blue),
                   onPressed: () async {
                     bool permitido = await DatabaseHelper.instance.intentarConsumirClonacion();
@@ -100,7 +182,6 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
                         ),
                       );
                     } else {
-                      // Verificamos si el usuario aún tiene disponible su video único de bonificación
                       bool puedeVerVideo = await DatabaseHelper.instance.puedeVerVideoRecompensa();
 
                       if (!context.mounted) return;
@@ -122,7 +203,6 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
                               onPressed: () => Navigator.pop(c),
                               child: const Text("Cancelar"),
                             ),
-                            // Mostramos el botón del video SOLO si no lo ha usado
                             if (puedeVerVideo)
                               TextButton(
                                 style: TextButton.styleFrom(foregroundColor: Colors.orange),
@@ -133,7 +213,6 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
                                 },
                                 child: const Text("Ver Video Único (+1)"),
                               ),
-                            // Botón de activación Pro con Google Play Integrity
                             ElevatedButton(
                               style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.blue,

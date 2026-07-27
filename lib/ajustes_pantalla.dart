@@ -1,4 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'database_helper.dart';
 
 class AjustesScreen extends StatefulWidget {
@@ -14,7 +19,9 @@ class _AjustesScreenState extends State<AjustesScreen> {
   final TextEditingController _dirController = TextEditingController();
   final TextEditingController _resolucionDianController = TextEditingController();
 
+  String _logoPath = '';
   bool _isLoading = false;
+  int _esPro = 0;
 
   @override
   void initState() {
@@ -24,10 +31,86 @@ class _AjustesScreenState extends State<AjustesScreen> {
 
   Future<void> _cargarAjustes() async {
     final ajustes = await DatabaseHelper.instance.obtenerDatosPago();
-    _nombreController.text = ajustes['nombre_negocio'] ?? '';
-    _nitController.text = ajustes['nit'] ?? '';
-    _dirController.text = ajustes['direccion'] ?? '';
-    _resolucionDianController.text = ajustes['resolucion_dian'] ?? '';
+    setState(() {
+      _nombreController.text = ajustes['nombre_negocio'] ?? '';
+      _nitController.text = ajustes['nit'] ?? '';
+      _dirController.text = ajustes['direccion'] ?? '';
+      _resolucionDianController.text = ajustes['resolucion_dian'] ?? '';
+      _logoPath = ajustes['logo_path'] ?? '';
+      _esPro = ajustes['es_pro'] ?? 0;
+    });
+  }
+
+  Future<void> _seleccionarYRecortarLogo() async {
+    if (_esPro == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("🔒 El logotipo corporativo es exclusivo de la versión Pro")),
+      );
+      return;
+    }
+
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? imagenSeleccionada = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 90,
+      );
+
+      if (imagenSeleccionada == null) return;
+
+      CroppedFile? croppedFile = await ImageCropper().cropImage(
+        sourcePath: imagenSeleccionada.path,
+        compressFormat: ImageCompressFormat.png,
+        compressQuality: 100,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Ajustar Logotipo',
+            toolbarColor: Colors.blue,
+            toolbarWidgetColor: Colors.white,
+            initAspectRatio: CropAspectRatioPreset.square,
+            lockAspectRatio: false,
+            aspectRatioPresets: [
+              CropAspectRatioPreset.square,
+              CropAspectRatioPreset.ratio3x2,
+              CropAspectRatioPreset.original,
+              CropAspectRatioPreset.ratio4x3,
+            ],
+          ),
+          IOSUiSettings(
+            title: 'Ajustar Logotipo',
+          ),
+        ],
+      );
+
+      if (croppedFile == null) return;
+
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = p.basename(croppedFile.path);
+      final savedImage = await File(croppedFile.path).copy('${directory.path}/$fileName');
+
+      setState(() {
+        _logoPath = savedImage.path;
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ Logotipo ajustado y seleccionado con éxito")),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Error al procesar imagen: $e"), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  void _eliminarLogo() {
+    setState(() {
+      _logoPath = '';
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("🗑️ Logotipo removido. Recuerda guardar cambios.")),
+    );
   }
 
   Future<void> _guardarCambios() async {
@@ -38,12 +121,13 @@ class _AjustesScreenState extends State<AjustesScreen> {
           _nombreController.text, _nitController.text, _dirController.text, 19.0
       );
       await DatabaseHelper.instance.actualizarResolucionDian(_resolucionDianController.text);
+      await DatabaseHelper.instance.actualizarLogoPath(_logoPath);
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("✅ Configuración y parámetros DIAN guardados"),
+          content: Text("✅ Configuración guardada con éxito"),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
         ),
@@ -69,6 +153,7 @@ class _AjustesScreenState extends State<AjustesScreen> {
         padding: const EdgeInsets.all(20.0),
         child: SingleChildScrollView(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TextField(controller: _nombreController, decoration: const InputDecoration(labelText: "Nombre Negocio", border: OutlineInputBorder(), prefixIcon: Icon(Icons.store))),
               const SizedBox(height: 15),
@@ -84,6 +169,90 @@ class _AjustesScreenState extends State<AjustesScreen> {
                   prefixIcon: Icon(Icons.verified_outlined),
                 ),
               ),
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 10),
+              const Row(
+                children: [
+                  Icon(Icons.workspace_premium, color: Colors.amber),
+                  SizedBox(width: 8),
+                  Text("Personalización Pro (Logotipo)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade400),
+                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.grey.shade50,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: _logoPath.isNotEmpty && File(_logoPath).existsSync()
+                          ? ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.file(File(_logoPath), fit: BoxFit.cover),
+                      )
+                          : const Icon(Icons.image_not_supported, color: Colors.grey),
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("Logotipo de Factura", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          const SizedBox(height: 4),
+                          Text(
+                            _logoPath.isNotEmpty ? "Imagen activa" : "Sin logotipo",
+                            style: TextStyle(fontSize: 11, color: _logoPath.isNotEmpty ? Colors.green.shade700 : Colors.grey.shade600),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: _esPro == 1 ? _seleccionarYRecortarLogo : null,
+                          icon: Icon(_esPro == 1 ? Icons.crop : Icons.lock, size: 14),
+                          label: Text(_esPro == 1 ? "Editar" : "Pro"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _esPro == 1 ? Colors.blue : Colors.grey.shade300,
+                            foregroundColor: _esPro == 1 ? Colors.white : Colors.grey.shade700,
+                            minimumSize: const Size(80, 32),
+                            padding: EdgeInsets.zero,
+                          ),
+                        ),
+                        if (_logoPath.isNotEmpty && _esPro == 1)
+                          TextButton.icon(
+                            onPressed: _eliminarLogo,
+                            icon: const Icon(Icons.delete_outline, size: 14, color: Colors.red),
+                            label: const Text("Quitar", style: TextStyle(fontSize: 11, color: Colors.red)),
+                            style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(80, 24)),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (_esPro == 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6.0),
+                  child: Text(
+                    "🔒 Activa la versión Pro para recortar y habilitar tu logotipo en los recibos.",
+                    style: TextStyle(fontSize: 12, color: Colors.orange.shade800, fontStyle: FontStyle.italic),
+                  ),
+                ),
               const SizedBox(height: 25),
               SizedBox(
                 width: double.infinity,

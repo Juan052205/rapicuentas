@@ -20,7 +20,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 17, // 👈 Actualizamos la versión a 17
+      version: 18, // 👈 Versión 18 activa
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -42,10 +42,13 @@ class DatabaseHelper {
     if (oldVersion < 16) {
       await db.execute('ALTER TABLE ventas ADD COLUMN observaciones TEXT DEFAULT ""');
     }
-    // 👈 Nueva migración para Fase 3.5 (Resolución DIAN y Consecutivo)
     if (oldVersion < 17) {
       await db.execute('ALTER TABLE ajustes_globales ADD COLUMN resolucion_dian TEXT DEFAULT ""');
       await db.execute('ALTER TABLE ajustes_globales ADD COLUMN consecutivo_factura INTEGER DEFAULT 1');
+    }
+    // 👈 Migración para la versión 18 (Logotipo Corporativo)
+    if (oldVersion < 18) {
+      await db.execute('ALTER TABLE ajustes_globales ADD COLUMN logo_path TEXT DEFAULT ""');
     }
   }
 
@@ -61,7 +64,8 @@ class DatabaseHelper {
         intentos_clonacion_restantes INTEGER DEFAULT 3,
         video_usado INTEGER DEFAULT 0,
         resolucion_dian TEXT DEFAULT "",
-        consecutivo_factura INTEGER DEFAULT 1
+        consecutivo_factura INTEGER DEFAULT 1,
+        logo_path TEXT DEFAULT ""
       )
     ''');
     await db.execute('''
@@ -85,7 +89,8 @@ class DatabaseHelper {
       'intentos_clonacion_restantes': 3,
       'video_usado': 0,
       'resolucion_dian': '',
-      'consecutivo_factura': 1
+      'consecutivo_factura': 1,
+      'logo_path': ''
     });
   }
 
@@ -110,6 +115,11 @@ class DatabaseHelper {
   Future<void> actualizarEstadoPro(int esPro) async {
     final db = await database;
     await db.update('ajustes_globales', {'es_pro': esPro}, where: 'id = 1');
+  }
+
+  Future<void> actualizarLogoPath(String path) async {
+    final db = await database;
+    await db.update('ajustes_globales', {'logo_path': path}, where: 'id = 1');
   }
 
   Future<int> obtenerIntentosClonacion() async {

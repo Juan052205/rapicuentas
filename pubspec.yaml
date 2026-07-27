@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  image_picker: ^1.1.2
+  image_cropper: ^8.0.3
   google_mobile_ads: ^9.0.0
   cupertino_icons: ^1.0.6
   sqflite: ^2.3.0
