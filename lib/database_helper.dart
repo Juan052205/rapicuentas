@@ -18,19 +18,20 @@ class DatabaseHelper {
     final dbPath = await getApplicationDocumentsDirectory();
     final path = join(dbPath.path, filePath);
 
-    // Incrementamos la versión a 12 para forzar la actualización
     return await openDatabase(
       path,
-      version: 12,
+      version: 13,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
   }
 
-  // Lógica de actualización: agrega la columna faltante si la app ya existía
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 12) {
       await db.execute('ALTER TABLE ajustes_globales ADD COLUMN iva_porcentaje REAL DEFAULT 19.0');
+    }
+    if (oldVersion < 13) {
+      await db.execute('ALTER TABLE ventas ADD COLUMN tipo_documento TEXT DEFAULT "COMPROBANTE DE VENTA"');
     }
   }
 
@@ -48,7 +49,7 @@ class DatabaseHelper {
       CREATE TABLE ventas (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         cliente_id INTEGER, total REAL, fecha TEXT, 
-        productos_detalle TEXT, metodo_pago TEXT
+        productos_detalle TEXT, metodo_pago TEXT, tipo_documento TEXT
       )
     ''');
     await db.insert('ajustes_globales', {
@@ -57,7 +58,6 @@ class DatabaseHelper {
     });
   }
 
-  // --- MÉTODOS ---
   Future<Map<String, dynamic>> obtenerDatosPago() async {
     final db = await database;
     final res = await db.query('ajustes_globales', where: 'id = 1');
@@ -67,10 +67,7 @@ class DatabaseHelper {
   Future<void> actualizarConfiguracion(String n, String nit, String dir, double iva) async {
     final db = await database;
     await db.update('ajustes_globales', {
-      'nombre_negocio': n,
-      'nit': nit,
-      'direccion': dir,
-      'iva_porcentaje': iva
+      'nombre_negocio': n, 'nit': nit, 'direccion': dir, 'iva_porcentaje': iva
     }, where: 'id = 1');
   }
 

@@ -5,6 +5,7 @@ import 'clientes_pantalla.dart';
 import 'productos_pantalla.dart';
 import 'historial_ventas_pantalla.dart';
 import 'ajustes_pantalla.dart';
+import 'pdf_generator.dart';
 
 void main() => runApp(const MyApp());
 
@@ -69,6 +70,9 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
   String _metodoSeleccionado = 'Efectivo';
   final List<String> _metodos = ['Efectivo', 'Nequi', 'Daviplata', 'Cuenta Bancaria'];
 
+  String _tipoDocumentoSeleccionado = 'COMPROBANTE DE VENTA';
+  final List<String> _tiposDocumento = ['COMPROBANTE DE VENTA', 'COTIZACIÓN', 'RECIBO DE CAJA'];
+
   @override
   void initState() {
     super.initState();
@@ -85,7 +89,6 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
     });
   }
 
-  // Cuenta cuántas veces está un producto en el carrito
   int _contarEnCarrito(String nombreProducto) {
     return _carrito.where((item) => item['nombre_producto'] == nombreProducto).length;
   }
@@ -151,8 +154,10 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
         'fecha': DateTime.now().toString(),
         'productos_detalle': jsonProductos,
         'metodo_pago': _metodoSeleccionado,
+        'tipo_documento': _tipoDocumentoSeleccionado,
       };
 
+      await PdfGenerator.generarFactura(nuevaVenta, false, 0.0);
       await DatabaseHelper.instance.insertarVenta(nuevaVenta);
 
       setState(() {
@@ -160,11 +165,12 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
         _total = 0.0;
         _clienteSeleccionado = null;
         _metodoSeleccionado = 'Efectivo';
+        _tipoDocumentoSeleccionado = 'COMPROBANTE DE VENTA';
       });
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ Venta registrada con éxito")));
+          const SnackBar(content: Text("✅ Venta registrada y generada")));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -189,36 +195,79 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
       children: [
         Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Row(
+          child: Column(
             children: [
-              Expanded(
-                child: DropdownButtonFormField<int>(
-                  decoration: const InputDecoration(
-                      labelText: "Cliente", border: OutlineInputBorder()),
-                  value: _clienteSeleccionado?['id'],
-                  items: _clientes
-                      .map((c) => DropdownMenuItem<int>(
-                    value: c['id'] as int,
-                    child: Text(c['nombre_empresa'] ?? ''),
-                  ))
-                      .toList(),
-                  onChanged: (int? nuevoId) => setState(() =>
-                  _clienteSeleccionado = _clientes
-                      .firstWhere((c) => c['id'] == nuevoId)),
-                ),
+              DropdownButtonFormField<int>(
+                decoration: const InputDecoration(
+                    labelText: "Cliente", border: OutlineInputBorder()),
+                value: _clienteSeleccionado?['id'],
+                items: _clientes
+                    .map((c) => DropdownMenuItem<int>(
+                  value: c['id'] as int,
+                  child: Text(c['nombre_empresa'] ?? ''),
+                ))
+                    .toList(),
+                onChanged: (int? nuevoId) => setState(() =>
+                _clienteSeleccionado = _clientes
+                    .firstWhere((c) => c['id'] == nuevoId)),
               ),
-              const SizedBox(width: 10),
-              Flexible(
-                child: DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(
-                      labelText: "Pago", border: OutlineInputBorder()),
-                  isExpanded: true,
-                  value: _metodoSeleccionado,
-                  items: _metodos
-                      .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-                      .toList(),
-                  onChanged: (val) => setState(() => _metodoSeleccionado = val!),
-                ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  // Asignamos más espacio (flex 6) al tipo de documento por el texto largo
+                  Expanded(
+                    flex: 6,
+                    child: DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                          labelText: "Tipo Doc.", border: OutlineInputBorder()),
+                      value: _tipoDocumentoSeleccionado,
+                      items: _tiposDocumento
+                          .map((t) => DropdownMenuItem(
+                        value: t,
+                        child: Text(t, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                      ))
+                          .toList(),
+                      selectedItemBuilder: (BuildContext context) {
+                        return _tiposDocumento.map<Widget>((String item) {
+                          return Text(
+                            item,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          );
+                        }).toList();
+                      },
+                      onChanged: (val) => setState(() => _tipoDocumentoSeleccionado = val!),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Menos espacio (flex 4) para el método de pago
+                  Expanded(
+                    flex: 4,
+                    child: DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                          labelText: "Pago", border: OutlineInputBorder()),
+                      value: _metodoSeleccionado,
+                      items: _metodos
+                          .map((m) => DropdownMenuItem(
+                        value: m,
+                        child: Text(m, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                      ))
+                          .toList(),
+                      selectedItemBuilder: (BuildContext context) {
+                        return _metodos.map<Widget>((String item) {
+                          return Text(
+                            item,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          );
+                        }).toList();
+                      },
+                      onChanged: (val) => setState(() => _metodoSeleccionado = val!),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

@@ -9,10 +9,12 @@ class PdfGenerator {
     final pdf = pw.Document();
     final ajustes = await DatabaseHelper.instance.obtenerDatosPago();
 
-    // Cálculos seguros
     double subtotal = (venta['total'] as num?)?.toDouble() ?? 0.0;
     double valorIva = aplicarImpuesto ? (subtotal * (ivaConfigurado / 100)) : 0.0;
     double totalFinal = subtotal + valorIva;
+
+    // Extraer de forma dinámica el tipo de documento seleccionado
+    String tipoDoc = venta['tipo_documento'] ?? 'COMPROBANTE DE VENTA';
 
     List<dynamic> productosRaw = [];
     try {
@@ -29,28 +31,38 @@ class PdfGenerator {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // Encabezado
+              // Encabezado del Negocio
               pw.Center(
                   child: pw.Text(ajustes['nombre_negocio'] ?? 'RECIBO',
                       style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14))),
+
+              // Título dinámico (Comprobante, Cotización, etc.)
+              pw.Center(
+                  child: pw.Text(tipoDoc,
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.grey700))),
+
               pw.Text("NIT: ${ajustes['nit'] ?? 'No definido'}", style: const pw.TextStyle(fontSize: 7)),
               pw.Text("Dir: ${ajustes['direccion'] ?? 'No definido'}", style: const pw.TextStyle(fontSize: 7)),
               pw.Divider(thickness: 1),
 
-              // Tabla de productos - Mapeo corregido a las claves correctas
+              // Tabla de productos
               pw.Table.fromTextArray(
-                headers: ['Producto', 'Precio'],
+                headers: ['Producto', 'Cant', 'Precio'],
                 data: productosRaw.map((p) {
-                  // Manejo de seguridad para evitar nulls
                   String nombre = (p['nombre_producto'] ?? p['nombre'] ?? 'Producto').toString();
-                  num precio = (p['precio_unitario'] as num?) ?? 0;
+                  int cant = (p['cant'] as num?)?.toInt() ?? 1;
+                  num totalProd = (p['total'] ?? (p['precio_unitario'] ?? 0)) as num;
 
-                  return [nombre, "\$${precio.toInt()}"];
+                  return [nombre, "$cant", "\$${totalProd.toInt()}"];
                 }).toList(),
                 headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8),
                 headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
                 cellStyle: const pw.TextStyle(fontSize: 7),
-                columnWidths: {0: const pw.FlexColumnWidth(2), 1: const pw.FlexColumnWidth(1)},
+                columnWidths: {
+                  0: const pw.FlexColumnWidth(2),
+                  1: const pw.FlexColumnWidth(0.7),
+                  2: const pw.FlexColumnWidth(1),
+                },
               ),
 
               pw.Spacer(),
@@ -67,13 +79,19 @@ class PdfGenerator {
                       style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
                 ]),
               ),
+
+              pw.Center(
+                child: pw.Padding(
+                  padding: const pw.EdgeInsets.only(top: 10),
+                  child: pw.Text("Gracias por su preferencia", style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey600)),
+                ),
+              )
             ],
           );
         },
       ),
     );
 
-    // Imprimir el PDF
     await Printing.layoutPdf(onLayout: (format) async => pdf.save());
   }
 }
