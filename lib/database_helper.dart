@@ -20,7 +20,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 18, // 👈 Versión 18 activa
+      version: 20, // 👈 Versión 20 con bandera de bienvenida
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -46,9 +46,16 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE ajustes_globales ADD COLUMN resolucion_dian TEXT DEFAULT ""');
       await db.execute('ALTER TABLE ajustes_globales ADD COLUMN consecutivo_factura INTEGER DEFAULT 1');
     }
-    // 👈 Migración para la versión 18 (Logotipo Corporativo)
     if (oldVersion < 18) {
       await db.execute('ALTER TABLE ajustes_globales ADD COLUMN logo_path TEXT DEFAULT ""');
+    }
+    if (oldVersion < 19) {
+      await db.execute('ALTER TABLE ajustes_globales ADD COLUMN pdf_color_index INTEGER DEFAULT 0');
+      await db.execute('ALTER TABLE ajustes_globales ADD COLUMN pdf_estilo_tabla INTEGER DEFAULT 0');
+    }
+    // 👈 Migración correcta para la versión 20 (Bandera de primera bienvenida)
+    if (oldVersion < 20) {
+      await db.execute('ALTER TABLE ajustes_globales ADD COLUMN visto_bienvenida INTEGER DEFAULT 0');
     }
   }
 
@@ -65,7 +72,10 @@ class DatabaseHelper {
         video_usado INTEGER DEFAULT 0,
         resolucion_dian TEXT DEFAULT "",
         consecutivo_factura INTEGER DEFAULT 1,
-        logo_path TEXT DEFAULT ""
+        logo_path TEXT DEFAULT "",
+        pdf_color_index INTEGER DEFAULT 0,
+        pdf_estilo_tabla INTEGER DEFAULT 0,
+        visto_bienvenida INTEGER DEFAULT 0
       )
     ''');
     await db.execute('''
@@ -90,8 +100,25 @@ class DatabaseHelper {
       'video_usado': 0,
       'resolucion_dian': '',
       'consecutivo_factura': 1,
-      'logo_path': ''
+      'logo_path': '',
+      'pdf_color_index': 0,
+      'pdf_estilo_tabla': 0,
+      'visto_bienvenida': 0
     });
+  }
+
+  Future<bool> debeMostrarBienvenida() async {
+    final db = await database;
+    final res = await db.query('ajustes_globales', columns: ['visto_bienvenida'], where: 'id = 1');
+    if (res.isNotEmpty) {
+      return (res.first['visto_bienvenida'] as int? ?? 0) == 0;
+    }
+    return false;
+  }
+
+  Future<void> marcarBienvenidaVista() async {
+    final db = await database;
+    await db.update('ajustes_globales', {'visto_bienvenida': 1}, where: 'id = 1');
   }
 
   Future<Map<String, dynamic>> obtenerDatosPago() async {
@@ -120,6 +147,14 @@ class DatabaseHelper {
   Future<void> actualizarLogoPath(String path) async {
     final db = await database;
     await db.update('ajustes_globales', {'logo_path': path}, where: 'id = 1');
+  }
+
+  Future<void> actualizarEstilosPdf(int colorIndex, int estiloTabla) async {
+    final db = await database;
+    await db.update('ajustes_globales', {
+      'pdf_color_index': colorIndex,
+      'pdf_estilo_tabla': estiloTabla,
+    }, where: 'id = 1');
   }
 
   Future<int> obtenerIntentosClonacion() async {
@@ -172,7 +207,6 @@ class DatabaseHelper {
     ''');
   }
 
-  // Actualizar los datos de resolución fiscal DIAN
   Future<void> actualizarResolucionDian(String resolucion) async {
     final db = await database;
     await db.update(
@@ -182,7 +216,6 @@ class DatabaseHelper {
     );
   }
 
-  // Obtener el siguiente consecutivo y autoincrementarlo
   Future<int> obtenerYIncrementarConsecutivo() async {
     final db = await database;
     final res = await db.query('ajustes_globales', columns: ['consecutivo_factura'], where: 'id = 1');
@@ -210,19 +243,16 @@ class DatabaseHelper {
     return await db.rawQuery('SELECT v.*, c.nombre_empresa FROM ventas v JOIN clientes c ON v.cliente_id = c.id ORDER BY v.fecha DESC');
   }
 
-  // Verificar si el usuario aún tiene disponible el beneficio del video único
   Future<bool> puedeVerVideoRecompensa() async {
     final db = await database;
     final resultado = await db.query('ajustes_globales', columns: ['video_usado'], where: 'id = 1');
     if (resultado.isNotEmpty) {
-      // Si 'video_usado' es 0 o null, aún puede ver el video. Si es 1, ya lo usó.
       int usado = resultado.first['video_usado'] as int? ?? 0;
       return usado == 0;
     }
     return true;
   }
 
-// Marcar el video como ya utilizado
   Future<void> marcarVideoComoUsado() async {
     final db = await database;
     await db.update(

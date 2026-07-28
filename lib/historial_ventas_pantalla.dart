@@ -29,7 +29,6 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
   }
 
   Future<void> _mostrarModuloAnalitico(BuildContext context) async {
-    // Consultamos si el usuario es Pro para habilitar el reporte avanzado
     final ajustes = await DatabaseHelper.instance.obtenerDatosPago();
     int esPro = ajustes['es_pro'] ?? 0;
 
@@ -37,7 +36,6 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
     int cantidadVentas = _ventas.length;
     double promedioVenta = cantidadVentas > 0 ? totalVentasGlobal / cantidadVentas : 0.0;
 
-    // Procesar métodos de pago y productos más vendidos si es Pro
     Map<String, double> metodosPagoConteo = {};
     Map<String, int> productosTop = {};
 
@@ -148,7 +146,110 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
     );
   }
 
-  Future<void> _compartirFacturaPdfHistorial(Map<String, dynamic> v) async {
+  // 👈 NUEVO FLUJO: Validación Pro o Video Recompensado para Compartir PDF
+  Future<void> _manejarCompartirPdf(Map<String, dynamic> v) async {
+    final ajustes = await DatabaseHelper.instance.obtenerDatosPago();
+    int esPro = ajustes['es_pro'] ?? 0;
+
+    if (esPro == 1) {
+      await _compartirFacturaPdfDirecto(v);
+    } else {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text("📢 Compartir Comprobante"),
+          content: const Text(
+              "Las cuentas gratuitas pueden compartir documentos viendo un breve video o haciéndose Pro para envío inmediato sin anuncios."
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c),
+              child: const Text("Cancelar"),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Colors.teal),
+              onPressed: () {
+                Navigator.pop(c);
+                _cargarYMostrarAnuncioRecompensadoParaCompartir(context, v);
+              },
+              child: const Text("Ver Video y Compartir"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                Navigator.pop(c);
+                bool esLegitimo = await PlayIntegrityService.verificarLicenciaYPlayStore();
+
+                if (!context.mounted) return;
+
+                if (!esLegitimo) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("❌ Verificación de Play Integrity fallida."),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                await DatabaseHelper.instance.actualizarEstadoPro(1);
+
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("🚀 ¡Versión Pro verificada y activada con éxito!"),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+
+                await _compartirFacturaPdfDirecto(v);
+              },
+              child: const Text("Hacerme Pro"),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  void _cargarYMostrarAnuncioRecompensadoParaCompartir(BuildContext context, Map<String, dynamic> venta) {
+    RewardedAd.load(
+      adUnitId: 'ca-app-pub-3940256099942544/5224354917',
+      request: const AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (RewardedAd ad) {
+          ad.fullScreenContentCallback = FullScreenContentCallback(
+            onAdDismissedFullScreenContent: (RewardedAd ad) {
+              ad.dispose();
+            },
+            onAdFailedToShowFullScreenContent: (RewardedAd ad, AdError error) {
+              ad.dispose();
+            },
+          );
+
+          ad.show(onUserEarnedReward: (AdWithoutView ad, RewardItem reward) async {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("🎉 ¡Video completado! Abriendo opciones de compartir..."))
+            );
+            await _compartirFacturaPdfDirecto(venta);
+          });
+        },
+        onAdFailedToLoad: (LoadAdError error) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("🎁 ¡Acceso concedido por cortesía!"))
+          );
+          _compartirFacturaPdfDirecto(venta);
+        },
+      ),
+    );
+  }
+
+  Future<void> _compartirFacturaPdfDirecto(Map<String, dynamic> v) async {
     try {
       await PdfGenerator.compartirFacturaPdf(v, false, 0.0);
     } catch (e) {
@@ -232,8 +333,8 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.share, color: Colors.teal),
-                  tooltip: "Enviar PDF a WhatsApp",
-                  onPressed: () => _compartirFacturaPdfHistorial(v),
+                  tooltip: "Enviar PDF",
+                  onPressed: () => _manejarCompartirPdf(v), // 👈 Vinculado al nuevo flujo protegido
                 ),
                 IconButton(
                   icon: const Icon(Icons.copy_all, color: Colors.blue),

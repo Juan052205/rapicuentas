@@ -8,6 +8,19 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'database_helper.dart';
 
 class PdfGenerator {
+  static const List<PdfColor> paletaPdfColores = [
+    PdfColors.blue800,
+    PdfColors.indigo,
+    PdfColors.green800,
+    PdfColors.teal,
+    PdfColors.red800,
+    PdfColors.purple,
+    PdfColors.orange800,
+    PdfColors.grey800,
+    PdfColors.brown,
+    PdfColors.cyan800,
+  ];
+
   static Future<void> _gestionarAnuncioYExportar(Function onExportar) async {
     final ajustes = await DatabaseHelper.instance.obtenerDatosPago();
     int esPro = ajustes['es_pro'] ?? 0;
@@ -50,7 +63,6 @@ class PdfGenerator {
     );
   }
 
-  // Método principal para generar y visualizar/imprimir la factura
   static Future<void> generarFactura(
       Map<String, dynamic> venta,
       bool aplicarImpuesto,
@@ -68,7 +80,6 @@ class PdfGenerator {
     }
   }
 
-  // Método para compartir el PDF real como archivo adjunto a WhatsApp u otras apps
   static Future<void> compartirFacturaPdf(
       Map<String, dynamic> venta,
       bool aplicarImpuesto,
@@ -89,7 +100,6 @@ class PdfGenerator {
     }
   }
 
-  // Método privado para maquetar el diseño corporativo del PDF
   static Future<pw.Document> _construirDocumentoPdf(
       Map<String, dynamic> venta,
       bool aplicarImpuesto,
@@ -104,6 +114,10 @@ class PdfGenerator {
     String resolucionDian = ajustes['resolucion_dian'] ?? '';
     String metodoPago = venta['metodo_pago'] ?? 'Efectivo';
     String logoPath = ajustes['logo_path'] ?? '';
+
+    int colorIndex = (ajustes['pdf_color_index'] as num?)?.toInt() ?? 0;
+    int estiloTabla = (ajustes['pdf_estilo_tabla'] as num?)?.toInt() ?? 0;
+    PdfColor colorCorporativo = paletaPdfColores[colorIndex.clamp(0, paletaPdfColores.length - 1)];
 
     pw.MemoryImage? logoImage;
     if (esPro == 1 && logoPath.isNotEmpty && File(logoPath).existsSync()) {
@@ -177,7 +191,7 @@ class PdfGenerator {
                       crossAxisAlignment: pw.CrossAxisAlignment.center,
                       children: [
                         pw.Text(nombreNegocio,
-                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
+                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13, color: colorCorporativo)),
                         pw.Text(tipoDoc,
                             style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8, color: PdfColors.grey700)),
                       ],
@@ -194,10 +208,10 @@ class PdfGenerator {
                 ],
               ),
               pw.Text("Dir: ${ajustes['direccion'] ?? 'No definido'}", style: const pw.TextStyle(fontSize: 7)),
-              pw.Text("Método de Pago: $metodoPago", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800)),
-              pw.Divider(thickness: 1),
+              pw.Text("Método de Pago: $metodoPago", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: colorCorporativo)),
+              pw.Divider(thickness: 1, color: colorCorporativo),
 
-              // Tabla detallada con Producto, Cantidad, Valor Unitario y Total
+              // 👈 Estilo de tabla marcadamente perceptible según el estilo elegido
               pw.Table.fromTextArray(
                 headers: const ['Producto', 'Cant', 'V. Unit', 'Total'],
                 data: productosProcesados.map((p) {
@@ -208,9 +222,22 @@ class PdfGenerator {
 
                   return [nombre, "$cant", "\$${pUnit.toInt()}", "\$${totalProd.toInt()}"];
                 }).toList(),
-                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5),
-                headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5, color: PdfColors.white),
+                headerDecoration: pw.BoxDecoration(color: colorCorporativo),
                 cellStyle: const pw.TextStyle(fontSize: 6.5),
+                // Estilo 0: Fondo Sombreado alternado en filas (Gris muy suave vs Blanco)
+                // Estilo 1: Minimalista con líneas limpias horizontales y fondo limpio
+                cellDecoration: (row, col, index) {
+                  if (estiloTabla == 0) {
+                    return row % 2 == 0
+                        ? const pw.BoxDecoration(color: PdfColors.grey200)
+                        : const pw.BoxDecoration(color: PdfColors.white);
+                  } else {
+                    return const pw.BoxDecoration(
+                      border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5)),
+                    );
+                  }
+                },
                 columnWidths: const {
                   0: pw.FlexColumnWidth(1.8),
                   1: pw.FlexColumnWidth(0.6),
@@ -241,7 +268,7 @@ class PdfGenerator {
                     pw.Text("$retencionTipo (${retencionPorcentaje}%): -\$${valorRetencion.toInt()}", style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.red700)),
                   pw.Divider(thickness: 0.5),
                   pw.Text("TOTAL: \$${totalFinal.toInt()}",
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9.5)),
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9.5, color: colorCorporativo)),
                 ]),
               ),
               pw.Divider(thickness: 0.5),

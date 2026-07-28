@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'database_helper.dart';
 import 'clientes_pantalla.dart';
 import 'productos_pantalla.dart';
 import 'historial_ventas_pantalla.dart';
 import 'ajustes_pantalla.dart';
 import 'pdf_generator.dart';
+import 'personalizacion_pdf_pantalla.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,8 +23,109 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
-    home: const NavegacionPrincipal(),
+    home: const SplashScreen(),
   );
+}
+
+// 🚀 Pantalla de Carga Inicial (Splash Screen con animación de puntos)
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+
+    _inicializarApp();
+  }
+
+  Future<void> _inicializarApp() async {
+    await DatabaseHelper.instance.database;
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const NavegacionPrincipal()),
+    );
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 90,
+              height: 90,
+              decoration: BoxDecoration(
+                color: Colors.blue.shade800,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.withOpacity(0.3),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.receipt_long, color: Colors.white, size: 48),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              "Rapicuentas",
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87, letterSpacing: 1.2),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Facturación y Gestión Profesional",
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 40),
+            AnimatedBuilder(
+              animation: _animationController,
+              builder: (context, child) {
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(3, (index) {
+                    double offset = math.sin((_animationController.value * 2 * 3.1416) + (index * 0.8));
+                    return Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      height: 8 + (offset * 4).abs(),
+                      width: 8 + (offset * 4).abs(),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade800.withOpacity(0.4 + (offset * 0.6).abs()),
+                        shape: BoxShape.circle,
+                      ),
+                    );
+                  }),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class NavegacionPrincipal extends StatefulWidget {
@@ -33,13 +136,92 @@ class NavegacionPrincipal extends StatefulWidget {
 }
 
 class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
-  int _indiceActual = 1;
+  int _indiceActual = 0;
+
   final List<Widget> _pantallas = [
     const ClientesPantalla(),
-    const GeneradorCuentasPantalla(),
     const ProductosPantalla(),
+    const GeneradorCuentasPantalla(),
     const HistorialVentasPantalla(),
+    const PersonalizacionPdfPantalla(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _verificarPrimerInicioUnicaVez();
+  }
+
+  Future<void> _verificarPrimerInicioUnicaVez() async {
+    bool mostrar = await DatabaseHelper.instance.debeMostrarBienvenida();
+    if (mostrar) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (!mounted) return;
+        _mostrarGuiaInteractivaCompleta();
+      });
+    }
+  }
+
+  void _mostrarGuiaInteractivaCompleta() {
+    DatabaseHelper.instance.marcarBienvenidaVista();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.waving_hand, color: Colors.blue),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                "¡Bienvenido a Rapicuentas!",
+                style: TextStyle(fontSize: 16),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Text(
+                "Para exprimir al máximo tu negocio y facturar con nivel gerencial, ten en cuenta estas herramientas clave:",
+                style: TextStyle(fontSize: 13, color: Colors.black87),
+              ),
+              SizedBox(height: 12),
+              Text("1️⃣ **Clientes:** Registra la base de tus compradores."),
+              SizedBox(height: 6),
+              Text("2️⃣ **Prod:** Configura tu catálogo de productos y precios."),
+              SizedBox(height: 6),
+              Text("3️⃣ **Cuenta (¡Ojo aquí!):**"),
+              Padding(
+                padding: EdgeInsets.only(left: 12, top: 2),
+                child: Text("• Usa el icono de **Engranaje ⚙️** arriba a la derecha para configurar tu NIT, Dirección y Logotipo de factura."),
+              ),
+              SizedBox(height: 6),
+              Text("4️⃣ **Historial (¡Ojo aquí!):**"),
+              Padding(
+                padding: EdgeInsets.only(left: 12, top: 2),
+                child: Text("• Usa el icono de **Analíticas 📊** arriba a la derecha para ver tu resumen de ventas, métodos de pago y top de productos."),
+              ),
+              SizedBox(height: 6),
+              Text("5️⃣ **Diseño:** Personaliza colores ejecutivos y estilos de tabla PDF."),
+            ],
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(context),
+            child: const Text("¡Entendido, a facturar!"),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -50,9 +232,10 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
           setState(() => _indiceActual = index),
       destinations: const [
         NavigationDestination(icon: Icon(Icons.people), label: 'Clientes'),
-        NavigationDestination(icon: Icon(Icons.add_circle), label: 'Cuenta'),
         NavigationDestination(icon: Icon(Icons.bakery_dining), label: 'Prod'),
+        NavigationDestination(icon: Icon(Icons.add_circle), label: 'Cuenta'),
         NavigationDestination(icon: Icon(Icons.history), label: 'Historial'),
+        NavigationDestination(icon: Icon(Icons.palette), label: 'Diseño'),
       ],
     ),
   );
@@ -79,7 +262,6 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
   String _tipoDocumentoSeleccionado = 'COMPROBANTE DE VENTA';
   final List<String> _tiposDocumento = ['COMPROBANTE DE VENTA', 'COTIZACIÓN', 'RECIBO DE CAJA'];
 
-  // Variables fiscales para IVA y Retenciones
   bool _aplicarIva = false;
   double _ivaPorcentaje = 19.0;
   String _retencionSeleccionada = 'Ninguna';
@@ -265,6 +447,7 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
       actions: [
         IconButton(
           icon: const Icon(Icons.settings),
+          tooltip: "Ajustes del Negocio (NIT, Nombre, Logotipo)",
           onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const AjustesScreen())),
@@ -274,7 +457,6 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
     body: SafeArea(
       child: Column(
         children: [
-          // 1. Sección superior de configuración (Scrollable)
           Expanded(
             flex: 4,
             child: SingleChildScrollView(
@@ -402,8 +584,6 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
               ),
             ),
           ),
-
-          // 👈 NUEVO: Separador visual elegante y Título de Sección para los Productos
           Container(
             color: Colors.grey.shade100,
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -424,8 +604,6 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
             ),
           ),
           const Divider(height: 1, thickness: 1, color: Colors.grey),
-
-          // 2. Sección inferior: Lista de productos disponibles
           Expanded(
             flex: 5,
             child: ListView.builder(
@@ -463,8 +641,6 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
               },
             ),
           ),
-
-          // 3. Barra inferior de totales y finalizar
           Container(
             padding: const EdgeInsets.all(20),
             color: Colors.blue.shade50,
