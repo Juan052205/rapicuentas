@@ -11,6 +11,8 @@ class ClientesPantalla extends StatefulWidget {
 class _ClientesPantallaState extends State<ClientesPantalla> {
   final _nombreController = TextEditingController();
   final _idController = TextEditingController();
+  final _telefonoController = TextEditingController();
+  final _direccionController = TextEditingController();
   List<Map<String, dynamic>> _clientes = [];
 
   @override
@@ -29,9 +31,13 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
       await DatabaseHelper.instance.insertarCliente({
         'nombre_empresa': _nombreController.text,
         'identificacion': _idController.text.isNotEmpty ? _idController.text : 'Consumidor Final',
+        'telefono': _telefonoController.text,
+        'direccion': _direccionController.text,
       });
       _nombreController.clear();
       _idController.clear();
+      _telefonoController.clear();
+      _direccionController.clear();
       _cargarClientes();
 
       if (!mounted) return;
@@ -49,12 +55,85 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
     }
   }
 
+  void _mostrarFormularioEdicion(Map<String, dynamic> cliente) {
+    final editNombre = TextEditingController(text: cliente['nombre_empresa']);
+    final editId = TextEditingController(text: cliente['identificacion']);
+    final editTelefono = TextEditingController(text: cliente['telefono'] ?? '');
+    final editDireccion = TextEditingController(text: cliente['direccion'] ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Editar Cliente"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: editNombre, decoration: const InputDecoration(labelText: "Nombre / Empresa")),
+              const SizedBox(height: 10),
+              TextField(controller: editId, decoration: const InputDecoration(labelText: "Identificación (NIT / CC)")),
+              const SizedBox(height: 10),
+              TextField(controller: editTelefono, decoration: const InputDecoration(labelText: "Teléfono (Opcional)")),
+              const SizedBox(height: 10),
+              TextField(controller: editDireccion, decoration: const InputDecoration(labelText: "Dirección (Opcional)")),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar")),
+          ElevatedButton(
+            onPressed: () async {
+              if (editNombre.text.isNotEmpty) {
+                await DatabaseHelper.instance.actualizarCliente(cliente['id'], {
+                  'nombre_empresa': editNombre.text,
+                  'identificacion': editId.text.isNotEmpty ? editId.text : 'Consumidor Final',
+                  'telefono': editTelefono.text,
+                  'direccion': editDireccion.text,
+                });
+                Navigator.pop(context);
+                _cargarClientes();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("✅ Cliente actualizado con éxito"), backgroundColor: Colors.green),
+                );
+              }
+            },
+            child: const Text("Guardar"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmarEliminar(int id) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Eliminar Cliente"),
+        content: const Text("¿Estás seguro de que deseas eliminar este cliente?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar")),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () async {
+              await DatabaseHelper.instance.eliminarCliente(id);
+              Navigator.pop(context);
+              _cargarClientes();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("🗑️ Cliente eliminado"), backgroundColor: Colors.red),
+              );
+            },
+            child: const Text("Eliminar"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text("Gestión de Clientes")),
     body: Column(
       children: [
-        // Tarjeta de Formulario con Estilo Ejecutivo
         Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
@@ -89,6 +168,39 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
                   isDense: true,
                 ),
               ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _telefonoController,
+                      decoration: const InputDecoration(
+                        labelText: "Teléfono (Opcional)",
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.phone_outlined),
+                        filled: true,
+                        fillColor: Colors.white,
+                        isDense: true,
+                      ),
+                      keyboardType: TextInputType.phone,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _direccionController,
+                      decoration: const InputDecoration(
+                        labelText: "Dirección (Opcional)",
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.location_on_outlined),
+                        filled: true,
+                        fillColor: Colors.white,
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -107,8 +219,6 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
             ],
           ),
         ),
-
-        // Cabecera de Lista
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           color: Colors.grey.shade100,
@@ -120,8 +230,6 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
             ],
           ),
         ),
-
-        // Lista Estilizada de Clientes
         Expanded(
           child: _clientes.isEmpty
               ? Center(
@@ -141,6 +249,7 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
               final cliente = _clientes[i];
               String nombre = cliente['nombre_empresa'] ?? 'Cliente';
               String nit = cliente['identificacion'] ?? 'N/A';
+              String tel = cliente['telefono'] ?? '';
               String inicial = nombre.isNotEmpty ? nombre[0].toUpperCase() : 'C';
 
               return Card(
@@ -154,8 +263,20 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
                     child: Text(inicial, style: const TextStyle(fontWeight: FontWeight.bold)),
                   ),
                   title: Text(nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  subtitle: Text("NIT/CC: $nit", style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                  subtitle: Text("NIT/CC: $nit ${tel.isNotEmpty ? '| Tel: $tel' : ''}", style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit, size: 18, color: Colors.blue),
+                        onPressed: () => _mostrarFormularioEdicion(cliente),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                        onPressed: () => _confirmarEliminar(cliente['id']),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },

@@ -53,12 +53,76 @@ class _ProductosPantallaState extends State<ProductosPantalla> {
     }
   }
 
+  void _mostrarFormularioEdicion(Map<String, dynamic> producto) {
+    final editNombre = TextEditingController(text: producto['nombre_producto']);
+    final editPrecio = TextEditingController(text: producto['precio_unitario'].toString());
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Editar Producto"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: editNombre, decoration: const InputDecoration(labelText: "Nombre del Producto")),
+            const SizedBox(height: 10),
+            TextField(controller: editPrecio, decoration: const InputDecoration(labelText: "Precio Unitario"), keyboardType: TextInputType.number),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar")),
+          ElevatedButton(
+            onPressed: () async {
+              final nuevoPrecio = double.tryParse(editPrecio.text) ?? 0.0;
+              if (editNombre.text.isNotEmpty && nuevoPrecio > 0) {
+                await DatabaseHelper.instance.actualizarProducto(producto['id'], {
+                  'nombre_producto': editNombre.text,
+                  'precio_unitario': nuevoPrecio,
+                });
+                Navigator.pop(context);
+                _cargarProductos();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("✅ Producto actualizado con éxito"), backgroundColor: Colors.green),
+                );
+              }
+            },
+            child: const Text("Guardar"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmarEliminar(int id) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Eliminar Producto"),
+        content: const Text("¿Deseas eliminar este producto del inventario?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar")),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () async {
+              await DatabaseHelper.instance.eliminarProducto(id);
+              Navigator.pop(context);
+              _cargarProductos();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("🗑️ Producto eliminado"), backgroundColor: Colors.red),
+              );
+            },
+            child: const Text("Eliminar"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text("Gestión de Productos")),
     body: Column(
       children: [
-        // Tarjeta de Formulario de Producto
         Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
@@ -112,8 +176,6 @@ class _ProductosPantallaState extends State<ProductosPantalla> {
             ],
           ),
         ),
-
-        // Cabecera de Inventario
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           color: Colors.grey.shade100,
@@ -125,8 +187,6 @@ class _ProductosPantallaState extends State<ProductosPantalla> {
             ],
           ),
         ),
-
-        // Lista de Productos Registrados (Antes faltaba)
         Expanded(
           child: _productos.isEmpty
               ? Center(
@@ -162,9 +222,22 @@ class _ProductosPantallaState extends State<ProductosPantalla> {
                     child: Icon(Icons.shopping_bag_outlined, color: Colors.green.shade700, size: 20),
                   ),
                   title: Text(nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  trailing: Text(
-                    "\$${precio.toStringAsFixed(0)}",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.blue.shade800),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "\$${precio.toStringAsFixed(0)}",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.blue.shade800),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit, size: 18, color: Colors.blue),
+                        onPressed: () => _mostrarFormularioEdicion(prod),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                        onPressed: () => _confirmarEliminar(prod['id']),
+                      ),
+                    ],
                   ),
                 ),
               );

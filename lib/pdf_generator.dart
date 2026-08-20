@@ -115,6 +115,18 @@ class PdfGenerator {
     String metodoPago = venta['metodo_pago'] ?? 'Efectivo';
     String logoPath = ajustes['logo_path'] ?? '';
 
+    // 🔍 Extracción segura de los datos del cliente dentro del método asíncrono
+    Map<String, dynamic>? clienteInfo;
+    if (venta['cliente_id'] != null) {
+      final db = await DatabaseHelper.instance.database;
+      final cliRes = await db.query('clientes', where: 'id = ?', whereArgs: [venta['cliente_id']]);
+      if (cliRes.isNotEmpty) clienteInfo = cliRes.first;
+    }
+    String nombreClientePdf = clienteInfo?['nombre_empresa'] ?? venta['nombre_empresa'] ?? 'Consumidor Final';
+    String nitClientePdf = clienteInfo?['identificacion'] ?? 'N/A';
+    String telClientePdf = clienteInfo?['telefono'] ?? '';
+    String dirClientePdf = clienteInfo?['direccion'] ?? '';
+
     int colorIndex = (ajustes['pdf_color_index'] as num?)?.toInt() ?? 0;
     int estiloTabla = (ajustes['pdf_estilo_tabla'] as num?)?.toInt() ?? 0;
     PdfColor colorCorporativo = paletaPdfColores[colorIndex.clamp(0, paletaPdfColores.length - 1)];
@@ -207,7 +219,22 @@ class PdfGenerator {
                   pw.Text("Factura: $numeroFacturaFormateado", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
                 ],
               ),
-              pw.Text("Dir: ${ajustes['direccion'] ?? 'No definido'}", style: const pw.TextStyle(fontSize: 7)),
+              pw.Text("Dir Negocio: ${ajustes['direccion'] ?? 'No definido'}", style: const pw.TextStyle(fontSize: 7)),
+              pw.Divider(thickness: 0.5),
+
+              // 👤 Bloque de Datos del Cliente en el Recibo
+              pw.Text("CLIENTE: $nombreClientePdf", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text("NIT/CC: $nitClientePdf", style: const pw.TextStyle(fontSize: 6.5)),
+                  if (telClientePdf.isNotEmpty)
+                    pw.Text("Tel: $telClientePdf", style: const pw.TextStyle(fontSize: 6.5)),
+                ],
+              ),
+              if (dirClientePdf.isNotEmpty)
+                pw.Text("Dir: $dirClientePdf", style: const pw.TextStyle(fontSize: 6.5)),
+
               pw.Text("Método de Pago: $metodoPago", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: colorCorporativo)),
               pw.Divider(thickness: 1, color: colorCorporativo),
 
@@ -225,8 +252,6 @@ class PdfGenerator {
                 headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5, color: PdfColors.white),
                 headerDecoration: pw.BoxDecoration(color: colorCorporativo),
                 cellStyle: const pw.TextStyle(fontSize: 6.5),
-                // Estilo 0: Fondo Sombreado alternado en filas (Gris muy suave vs Blanco)
-                // Estilo 1: Minimalista con líneas limpias horizontales y fondo limpio
                 cellDecoration: (row, col, index) {
                   if (estiloTabla == 0) {
                     return row % 2 == 0

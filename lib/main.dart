@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'dart:convert';
-import 'dart:math' as math;
 import 'database_helper.dart';
 import 'clientes_pantalla.dart';
 import 'productos_pantalla.dart';
@@ -12,7 +11,8 @@ import 'personalizacion_pdf_pantalla.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await MobileAds.instance.initialize();
+  // 🚀 Inicializamos los anuncios en segundo plano sin bloquear el arranque de la app[cite: 8]
+  MobileAds.instance.initialize();
   runApp(const MyApp());
 }
 
@@ -27,7 +27,7 @@ class MyApp extends StatelessWidget {
   );
 }
 
-// 🚀 Pantalla de Carga Inicial (Splash Screen con animación de puntos)
+// 🚀 Pantalla de Carga Inicial con Animación de Entrada Profesional (Estilo Cinematográfico)
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -36,33 +36,61 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
+
+    // Controlador de animación de alta fluidez (1.6 segundos)
+    _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat();
+      duration: const Duration(milliseconds: 1600),
+    );
+
+    // Animación de zoom/escala de entrada (de pequeño a tamaño real)
+    _scaleAnimation = Tween<double>(begin: 0.7, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    );
+
+    // Animación de aparición gradual (fade in)
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+    );
+
+    // Iniciamos la animación
+    _controller.forward();
 
     _inicializarApp();
   }
 
   Future<void> _inicializarApp() async {
-    await DatabaseHelper.instance.database;
-    await Future.delayed(const Duration(seconds: 2));
+    // 🚀 La base de datos carga en segundo plano de forma silenciosa[cite: 8]
+    DatabaseHelper.instance.database;
+
+    // Esperamos a que la animación luzca perfecta antes de saltar a la app
+    await Future.delayed(const Duration(milliseconds: 4000));
 
     if (!mounted) return;
+
+    // Transición suave hacia la navegación principal con fundido
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => const NavegacionPrincipal()),
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => const NavegacionPrincipal(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 500),
+      ),
     );
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -71,57 +99,58 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     return Scaffold(
       backgroundColor: Colors.white,
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 90,
-              height: 90,
-              decoration: BoxDecoration(
-                color: Colors.blue.shade800,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.blue.withOpacity(0.3),
-                    blurRadius: 15,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.receipt_long, color: Colors.white, size: 48),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              "Rapicuentas",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87, letterSpacing: 1.2),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              "Facturación y Gestión Profesional",
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 40),
-            AnimatedBuilder(
-              animation: _animationController,
-              builder: (context, child) {
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(3, (index) {
-                    double offset = math.sin((_animationController.value * 2 * 3.1416) + (index * 0.8));
-                    return Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      height: 8 + (offset * 4).abs(),
-                      width: 8 + (offset * 4).abs(),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade800.withOpacity(0.4 + (offset * 0.6).abs()),
-                        shape: BoxShape.circle,
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: ScaleTransition(
+            scale: _scaleAnimation,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Contenedor con estilo corporativo de alta gama para tu logotipo
+                Container(
+                  width: 110,
+                  height: 110,
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade900,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.withOpacity(0.35),
+                        blurRadius: 25,
+                        offset: const Offset(0, 8),
                       ),
-                    );
-                  }),
-                );
-              },
+                    ],
+                  ),
+                  child: const Icon(Icons.receipt_long, color: Colors.white, size: 58),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  "Rapicuentas",
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "Facturación y Gestión Profesional",
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600, letterSpacing: 0.5),
+                ),
+                const SizedBox(height: 50),
+                // Indicador de carga minimalista y elegante
+                SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade800),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -137,6 +166,7 @@ class NavegacionPrincipal extends StatefulWidget {
 
 class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
   int _indiceActual = 0;
+  bool _mostrarBienvenidaOverlay = false;
 
   final List<Widget> _pantallas = [
     const ClientesPantalla(),
@@ -155,90 +185,189 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
   Future<void> _verificarPrimerInicioUnicaVez() async {
     bool mostrar = await DatabaseHelper.instance.debeMostrarBienvenida();
     if (mostrar) {
-      Future.delayed(const Duration(milliseconds: 500), () {
+      await DatabaseHelper.instance.marcarBienvenidaVista();
+      Future.delayed(const Duration(milliseconds: 400), () {
         if (!mounted) return;
-        _mostrarGuiaInteractivaCompleta();
+        setState(() => _mostrarBienvenidaOverlay = true);
       });
     }
   }
 
-  void _mostrarGuiaInteractivaCompleta() {
-    DatabaseHelper.instance.marcarBienvenidaVista();
+  void _cerrarBienvenida() {
+    setState(() => _mostrarBienvenidaOverlay = false);
+  }
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: const [
-            Icon(Icons.waving_hand, color: Colors.blue),
-            SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                "¡Bienvenido a Rapicuentas!",
-                style: TextStyle(fontSize: 16),
-                overflow: TextOverflow.ellipsis,
+  void _mostrarGuiaAyuda() {
+    setState(() => _mostrarBienvenidaOverlay = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          _pantallas[_indiceActual],
+
+          // 🌟 Ventana de Guía / Ayuda Profesional y Estética[cite: 8]
+          if (_mostrarBienvenidaOverlay)
+            AnimatedOpacity(
+              opacity: _mostrarBienvenidaOverlay ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 300),
+              child: Container(
+                color: Colors.black54,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.all(16),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.25),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(Icons.verified, color: Colors.blue, size: 24),
+                            ),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Text(
+                                "Guía Rápida Rapicuentas",
+                                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close, size: 20, color: Colors.grey),
+                              onPressed: _cerrarBienvenida,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          "Optimiza tu negocio y factura con nivel gerencial usando estas secciones clave:",
+                          style: TextStyle(fontSize: 13, color: Colors.grey),
+                        ),
+                        const SizedBox(height: 16),
+
+                        _buildItemGuia(
+                          icon: Icons.people_outline,
+                          titulo: "1. Clientes",
+                          descripcion: "Registra la base de tus compradores o empresas frecuentes.",
+                        ),
+                        _buildItemGuia(
+                          icon: Icons.inventory_2_outlined,
+                          titulo: "2. Prod",
+                          descripcion: "Administra tu catálogo de productos y precios unitarios.",
+                        ),
+                        _buildItemGuia(
+                          icon: Icons.receipt_long_outlined,
+                          titulo: "3. Cuenta (Nueva Factura)",
+                          descripcion: "Selecciona cliente, productos y genera tu recibo PDF.\n• Tip Pro: Toca el engranaje ⚙️ arriba a la derecha para configurar tu NIT y logotipo.",
+                          destacado: true,
+                        ),
+                        _buildItemGuia(
+                          icon: Icons.history,
+                          titulo: "4. Historial",
+                          descripcion: "Administra, comparte o clona ventas pasadas.\n• Tip Pro: Toca el icono de analíticas 📊 para ver tu resumen de ventas y productos top.",
+                          destacado: true,
+                        ),
+                        _buildItemGuia(
+                          icon: Icons.palette_outlined,
+                          titulo: "5. Diseño",
+                          descripcion: "Personaliza los colores corporativos y estilos de tus recibos PDF.",
+                        ),
+
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue.shade800,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: _cerrarBienvenida,
+                            child: const Text("¡Entendido, a facturar!", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: const [
-              Text(
-                "Para exprimir al máximo tu negocio y facturar con nivel gerencial, ten en cuenta estas herramientas clave:",
-                style: TextStyle(fontSize: 13, color: Colors.black87),
-              ),
-              SizedBox(height: 12),
-              Text("1️⃣ **Clientes:** Registra la base de tus compradores."),
-              SizedBox(height: 6),
-              Text("2️⃣ **Prod:** Configura tu catálogo de productos y precios."),
-              SizedBox(height: 6),
-              Text("3️⃣ **Cuenta (¡Ojo aquí!):**"),
-              Padding(
-                padding: EdgeInsets.only(left: 12, top: 2),
-                child: Text("• Usa el icono de **Engranaje ⚙️** arriba a la derecha para configurar tu NIT, Dirección y Logotipo de factura."),
-              ),
-              SizedBox(height: 6),
-              Text("4️⃣ **Historial (¡Ojo aquí!):**"),
-              Padding(
-                padding: EdgeInsets.only(left: 12, top: 2),
-                child: Text("• Usa el icono de **Analíticas 📊** arriba a la derecha para ver tu resumen de ventas, métodos de pago y top de productos."),
-              ),
-              SizedBox(height: 6),
-              Text("5️⃣ **Diseño:** Personaliza colores ejecutivos y estilos de tabla PDF."),
-            ],
-          ),
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(context),
-            child: const Text("¡Entendido, a facturar!"),
-          ),
+        ],
+      ),
+      // 📌 Botón Flotante de Ayuda Fijo[cite: 8]
+      floatingActionButton: FloatingActionButton(
+        mini: true,
+        backgroundColor: Colors.blue.shade800,
+        foregroundColor: Colors.white,
+        tooltip: "Guía e Instrucciones",
+        onPressed: _mostrarGuiaAyuda,
+        child: const Icon(Icons.help_outline),
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _indiceActual,
+        onDestinationSelected: (int index) =>
+            setState(() => _indiceActual = index),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.people), label: 'Clientes'),
+          NavigationDestination(icon: Icon(Icons.bakery_dining), label: 'Prod'),
+          NavigationDestination(icon: Icon(Icons.add_circle), label: 'Cuenta'),
+          NavigationDestination(icon: Icon(Icons.history), label: 'Historial'),
+          NavigationDestination(icon: Icon(Icons.palette), label: 'Diseño'),
         ],
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    body: _pantallas[_indiceActual],
-    bottomNavigationBar: NavigationBar(
-      selectedIndex: _indiceActual,
-      onDestinationSelected: (int index) =>
-          setState(() => _indiceActual = index),
-      destinations: const [
-        NavigationDestination(icon: Icon(Icons.people), label: 'Clientes'),
-        NavigationDestination(icon: Icon(Icons.bakery_dining), label: 'Prod'),
-        NavigationDestination(icon: Icon(Icons.add_circle), label: 'Cuenta'),
-        NavigationDestination(icon: Icon(Icons.history), label: 'Historial'),
-        NavigationDestination(icon: Icon(Icons.palette), label: 'Diseño'),
-      ],
-    ),
-  );
+  Widget _buildItemGuia({required IconData icon, required String titulo, required String descripcion, bool destacado = false}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: destacado ? Colors.blue.shade50.withOpacity(0.5) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: destacado ? Colors.blue.shade200 : Colors.grey.shade200),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: Colors.blue.shade800),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(titulo, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
+                const SizedBox(height: 2),
+                Text(descripcion, style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700, height: 1.3)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class GeneradorCuentasPantalla extends StatefulWidget {
@@ -282,6 +411,53 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
     _cargarDatosYClonacion();
   }
 
+  void _editarPrecioTemporalProducto(int index) {
+    final producto = _prods[index];
+    final controller = TextEditingController(text: producto['precio_unitario'].toString());
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: Text("Cambiar precio: ${producto['nombre_producto']}"),
+        content: TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: "Nuevo Precio Unitario",
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text("Cancelar"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              String textoPrecio = controller.text.trim().replaceAll(',', '.');
+              double nuevoPrecio = double.tryParse(textoPrecio) ?? (producto['precio_unitario'] as num).toDouble();
+
+              setState(() {
+                _prods[index]['precio_unitario'] = nuevoPrecio;
+              });
+
+              Navigator.pop(dialogContext);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("✅ Precio actualizado para esta factura"),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            child: const Text("Actualizar"),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _cargarDatosYClonacion() async {
     final p = await DatabaseHelper.instance.obtenerProductosActivos();
     final c = await DatabaseHelper.instance.obtenerClientes();
@@ -289,7 +465,7 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
 
     if (!mounted) return;
     setState(() {
-      _prods = p;
+      _prods = p.map((e) => Map<String, dynamic>.from(e)).toList();
       _clientes = c;
       _ivaPorcentaje = (ajustes['iva_porcentaje'] as num?)?.toDouble() ?? 19.0;
 
@@ -616,7 +792,27 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
                 return Card(
                   child: ListTile(
                     title: Text(producto['nombre_producto']),
-                    subtitle: Text("\$${producto['precio_unitario']}"),
+                    subtitle: InkWell(
+                      onTap: () => _editarPrecioTemporalProducto(i),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "\$${producto['precio_unitario']}",
+                              style: TextStyle(
+                                color: Colors.blue.shade800,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(Icons.edit, size: 12, color: Colors.grey),
+                          ],
+                        ),
+                      ),
+                    ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -642,7 +838,7 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
             ),
           ),
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 20, 70, 20),
             color: Colors.blue.shade50,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -63,15 +63,15 @@ class _PersonalizacionPdfPantallaState extends State<PersonalizacionPdfPantalla>
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
-        title: Row(
-          children: const [
+        title: const Row(
+          children: [
             Icon(Icons.workspace_premium, color: Colors.amber),
             SizedBox(width: 8),
             Expanded(
               child: Text(
                 "Función Exclusiva Pro",
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 18),
+                style: TextStyle(fontSize: 18),
               ),
             ),
           ],

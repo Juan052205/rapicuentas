@@ -20,7 +20,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 20, // 👈 Versión 20 con bandera de bienvenida
+      version: 21,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -53,14 +53,25 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE ajustes_globales ADD COLUMN pdf_color_index INTEGER DEFAULT 0');
       await db.execute('ALTER TABLE ajustes_globales ADD COLUMN pdf_estilo_tabla INTEGER DEFAULT 0');
     }
-    // 👈 Migración correcta para la versión 20 (Bandera de primera bienvenida)
     if (oldVersion < 20) {
       await db.execute('ALTER TABLE ajustes_globales ADD COLUMN visto_bienvenida INTEGER DEFAULT 0');
+    }
+    if (oldVersion < 21) {
+      await db.execute('ALTER TABLE clientes ADD COLUMN telefono TEXT DEFAULT ""');
+      await db.execute('ALTER TABLE clientes ADD COLUMN direccion TEXT DEFAULT ""');
     }
   }
 
   Future _onCreate(Database db, int version) async {
-    await db.execute('CREATE TABLE clientes (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre_empresa TEXT, identificacion TEXT)');
+    await db.execute('''
+      CREATE TABLE clientes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        nombre_empresa TEXT, 
+        identificacion TEXT,
+        telefono TEXT DEFAULT "",
+        direccion TEXT DEFAULT ""
+      )
+    ''');
     await db.execute('CREATE TABLE productos (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre_producto TEXT, precio_unitario REAL)');
     await db.execute('''
       CREATE TABLE ajustes_globales (
@@ -240,7 +251,7 @@ class DatabaseHelper {
 
   Future<List<Map<String, dynamic>>> obtenerHistorialVentas() async {
     final db = await database;
-    return await db.rawQuery('SELECT v.*, c.nombre_empresa FROM ventas v JOIN clientes c ON v.cliente_id = c.id ORDER BY v.fecha DESC');
+    return await db.rawQuery('SELECT v.*, c.nombre_empresa FROM ventas v LEFT JOIN clientes c ON v.cliente_id = c.id ORDER BY v.fecha DESC');
   }
 
   Future<bool> puedeVerVideoRecompensa() async {
@@ -263,8 +274,27 @@ class DatabaseHelper {
     );
   }
 
+  // Clientes CRUD completo
   Future<int> insertarCliente(Map<String, dynamic> row) async => await (await database).insert('clientes', row);
   Future<List<Map<String, dynamic>>> obtenerClientes() async => await (await database).query('clientes');
+  Future<int> actualizarCliente(int id, Map<String, dynamic> row) async {
+    final db = await database;
+    return await db.update('clientes', row, where: 'id = ?', whereArgs: [id]);
+  }
+  Future<int> eliminarCliente(int id) async {
+    final db = await database;
+    return await db.delete('clientes', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // Productos CRUD completo
   Future<int> insertarProducto(Map<String, dynamic> row) async => await (await database).insert('productos', row);
   Future<List<Map<String, dynamic>>> obtenerProductosActivos() async => await (await database).query('productos');
+  Future<int> actualizarProducto(int id, Map<String, dynamic> row) async {
+    final db = await database;
+    return await db.update('productos', row, where: 'id = ?', whereArgs: [id]);
+  }
+  Future<int> eliminarProducto(int id) async {
+    final db = await database;
+    return await db.delete('productos', where: 'id = ?', whereArgs: [id]);
+  }
 }

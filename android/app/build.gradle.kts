@@ -4,8 +4,8 @@ plugins {
 }
 
 android {
+    compileSdk = 36
     namespace = "com.example.rapicuentas"
-    compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -16,7 +16,7 @@ android {
     defaultConfig {
         applicationId = "com.example.rapicuentas"
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -38,7 +38,7 @@ flutter {
     source = "../.."
 }
 
-// 👇 BLOQUE DE DEPENDENCIAS KOTLIN DSL PARA PLAY INTEGRITY
 dependencies {
+    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("com.google.android.play:integrity:1.3.0")
 }

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="LaunchTheme" parent="Theme.SplashScreen">
+        <!-- Fondo completamente blanco -->
+        <item name="android:windowSplashScreenBackground">@android:color/white</item>
+        <!-- Hacemos transparente el icono para que no aparezca el círculo con el logo -->
+        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="postSplashScreenTheme">@style/NormalTheme</item>
+    </style>
+
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+</resources>
