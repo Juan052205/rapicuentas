@@ -1,10 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'database_helper.dart';
 import 'pdf_generator.dart';
 import 'main.dart';
-import 'play_integrity_service.dart';
+import 'play_billing_service.dart';
 
 class HistorialVentasPantalla extends StatefulWidget {
   const HistorialVentasPantalla({super.key});
@@ -69,7 +70,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                esPro == 1 ? "Tablero Analítico Pro" : "Resumen de Ventas",
+                esPro == 1 ? "Tablero Analitico Pro" : "Resumen de Ventas",
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 18),
               ),
@@ -90,7 +91,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
                 const Divider(height: 20),
 
                 if (esPro == 1) ...[
-                  const Text("📊 Desglose por Método de Pago:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueAccent)),
+                  const Text("📊 Desglose por Metodo de Pago:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueAccent)),
                   const SizedBox(height: 6),
                   if (metodosPagoConteo.isEmpty)
                     const Text("Sin datos suficientes", style: TextStyle(fontSize: 11, color: Colors.grey))
@@ -122,7 +123,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
                       children: [
                         Text("🔒 Funcionalidad Exclusiva Pro", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.amber.shade900)),
                         const SizedBox(height: 4),
-                        const Text("Desbloquea el desglose por métodos de pago, top de productos más vendidos y analíticas avanzadas haciéndote Pro.", style: TextStyle(fontSize: 11)),
+                        const Text("Desbloquea el desglose por metodos de pago, top de productos mas vendidos y analiticas avanzadas haciendote Pro.", style: TextStyle(fontSize: 11)),
                       ],
                     ),
                   ),
@@ -135,8 +136,9 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
           if (esPro == 0)
             TextButton(
               style: TextButton.styleFrom(foregroundColor: Colors.blue),
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(c);
+                await PlayBillingService().comprarVersionPro();
               },
               child: const Text("Desbloquear Pro"),
             ),
@@ -146,7 +148,6 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
     );
   }
 
-  // 👈 NUEVO FLUJO: Validación Pro o Video Recompensado para Compartir PDF
   Future<void> _manejarCompartirPdf(Map<String, dynamic> v) async {
     final ajustes = await DatabaseHelper.instance.obtenerDatosPago();
     int esPro = ajustes['es_pro'] ?? 0;
@@ -160,7 +161,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
         builder: (c) => AlertDialog(
           title: const Text("📢 Compartir Comprobante"),
           content: const Text(
-              "Las cuentas gratuitas pueden compartir documentos viendo un breve video o haciéndose Pro para envío inmediato sin anuncios."
+              "Las cuentas gratuitas pueden compartir documentos viendo un breve video o haciendose Pro para envio inmediato sin anuncios."
           ),
           actions: [
             TextButton(
@@ -182,31 +183,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
               ),
               onPressed: () async {
                 Navigator.pop(c);
-                bool esLegitimo = await PlayIntegrityService.verificarLicenciaYPlayStore();
-
-                if (!context.mounted) return;
-
-                if (!esLegitimo) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("❌ Verificación de Play Integrity fallida."),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
-
-                await DatabaseHelper.instance.actualizarEstadoPro(1);
-
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("🚀 ¡Versión Pro verificada y activada con éxito!"),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-
-                await _compartirFacturaPdfDirecto(v);
+                await PlayBillingService().comprarVersionPro();
               },
               child: const Text("Hacerme Pro"),
             ),
@@ -217,8 +194,12 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
   }
 
   void _cargarYMostrarAnuncioRecompensadoParaCompartir(BuildContext context, Map<String, dynamic> venta) {
+    final String adUnitId = Platform.isAndroid
+        ? 'ca-app-pub-7567540983279751/3019309291'
+        : 'ca-app-pub-7567540983279751/5142804555';
+
     RewardedAd.load(
-      adUnitId: 'ca-app-pub-3940256099942544/5224354917',
+      adUnitId: adUnitId,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (RewardedAd ad) {
@@ -241,7 +222,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
         },
         onAdFailedToLoad: (LoadAdError error) {
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("🎁 ¡Acceso concedido por cortesía!"))
+              const SnackBar(content: Text("🎁 ¡Acceso concedido por cortesia!"))
           );
           _compartirFacturaPdfDirecto(venta);
         },
@@ -265,8 +246,12 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
   }
 
   void _cargarYMostrarAnuncioRecompensado(BuildContext context, Map<String, dynamic> ventaAClonar) {
+    final String adUnitId = Platform.isAndroid
+        ? 'ca-app-pub-7567540983279751/3019309291'
+        : 'ca-app-pub-7567540983279751/5142804555';
+
     RewardedAd.load(
-      adUnitId: 'ca-app-pub-3940256099942544/5224354917',
+      adUnitId: adUnitId,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (RewardedAd ad) {
@@ -284,7 +269,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
 
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("🎉 ¡Ganaste 1 intento de clonación extra!"))
+                const SnackBar(content: Text("🎉 ¡Ganaste 1 intento de clonacion extra!"))
             );
 
             Navigator.push(
@@ -298,7 +283,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
         onAdFailedToLoad: (LoadAdError error) {
           DatabaseHelper.instance.otorgarIntentosExtraPorAd();
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("🎁 ¡Intento extra concedido por cortesía!"))
+              const SnackBar(content: Text("🎁 ¡Intento extra concedido por cortesia!"))
           );
         },
       ),
@@ -312,13 +297,13 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
       actions: [
         IconButton(
           icon: const Icon(Icons.bar_chart),
-          tooltip: "Módulo Analítico",
+          tooltip: "Modulo Analitico",
           onPressed: () => _mostrarModuloAnalitico(context),
         ),
       ],
     ),
     body: _ventas.isEmpty
-        ? const Center(child: Text("No hay ventas registradas aún"))
+        ? const Center(child: Text("No hay ventas registradas aun"))
         : ListView.builder(
       itemCount: _ventas.length,
       itemBuilder: (context, index) {
@@ -334,7 +319,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
                 IconButton(
                   icon: const Icon(Icons.share, color: Colors.teal),
                   tooltip: "Enviar PDF",
-                  onPressed: () => _manejarCompartirPdf(v), // 👈 Vinculado al nuevo flujo protegido
+                  onPressed: () => _manejarCompartirPdf(v),
                 ),
                 IconButton(
                   icon: const Icon(Icons.copy_all, color: Colors.blue),
@@ -358,13 +343,13 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
                       showDialog(
                         context: context,
                         builder: (c) => AlertDialog(
-                          title: const Text("⚠️ Límite de clonaciones alcanzado"),
+                          title: const Text("⚠️ Limite de clonaciones alcanzado"),
                           content: Text(
                               puedeVerVideo
-                                  ? "Has agotado tus 3 intentos gratuitos de clonación.\n\n"
-                                  "• Ve 1 único video para ganar **1 intento extra**.\n"
+                                  ? "Has agotado tus 3 intentos gratuitos de clonacion.\n\n"
+                                  "• Ve 1 unico video para ganar **1 intento extra**.\n"
                                   "• O hazte Pro para clonaciones ilimitadas sin anuncios."
-                                  : "Has agotado tus intentos gratuitos y tu video de bonificación único.\n\n"
+                                  : "Has agotado tus intentos gratuitos y tu video de bonificacion unico.\n\n"
                                   "• Hazte Pro para clonaciones ilimitadas sin anuncios."
                           ),
                           actions: [
@@ -380,7 +365,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
                                   await DatabaseHelper.instance.marcarVideoComoUsado();
                                   _cargarYMostrarAnuncioRecompensado(context, v);
                                 },
-                                child: const Text("Ver Video Único (+1)"),
+                                child: const Text("Ver Video Unico (+1)"),
                               ),
                             ElevatedButton(
                               style: ElevatedButton.styleFrom(
@@ -388,40 +373,8 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
                                   foregroundColor: Colors.white
                               ),
                               onPressed: () async {
-                                bool esLegitimo = await PlayIntegrityService.verificarLicenciaYPlayStore();
-
-                                if (!context.mounted) return;
-
-                                if (!esLegitimo) {
-                                  Navigator.pop(c);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text("❌ Verificación de Play Integrity fallida. No se pudo confirmar la licencia oficial."),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                  return;
-                                }
-
-                                await DatabaseHelper.instance.actualizarEstadoPro(1);
-
-                                if (!context.mounted) return;
                                 Navigator.pop(c);
-
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("🚀 ¡Felicidades! Versión Pro verificada y activada con éxito."),
-                                    backgroundColor: Colors.green,
-                                    duration: Duration(seconds: 4),
-                                  ),
-                                );
-
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => GeneradorCuentasPantalla(ventaAClonar: v),
-                                  ),
-                                );
+                                await PlayBillingService().comprarVersionPro();
                               },
                               child: const Text("Hacerme Pro"),
                             ),
@@ -458,7 +411,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
                         content: const Text("¿Deseas borrar esta venta?"),
                         actions: [
                           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("No")),
-                          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text("Sí")),
+                          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text("Si")),
                         ],
                       ),
                     );

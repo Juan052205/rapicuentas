@@ -132,107 +132,110 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text("Gestión de Clientes")),
-    body: Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(16.0),
-          decoration: BoxDecoration(
-            color: Colors.blue.shade50.withOpacity(0.5),
-            border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text("Registrar Nuevo Cliente", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey)),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _nombreController,
-                decoration: const InputDecoration(
-                  labelText: "Nombre / Empresa",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.business_outlined),
-                  filled: true,
-                  fillColor: Colors.white,
-                  isDense: true,
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _idController,
-                decoration: const InputDecoration(
-                  labelText: "Identificación (NIT / CC)",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.badge_outlined),
-                  filled: true,
-                  fillColor: Colors.white,
-                  isDense: true,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _telefonoController,
-                      decoration: const InputDecoration(
-                        labelText: "Teléfono (Opcional)",
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.phone_outlined),
-                        filled: true,
-                        fillColor: Colors.white,
-                        isDense: true,
-                      ),
-                      keyboardType: TextInputType.phone,
-                    ),
+    // 🛠️ Toda la pantalla ahora es un SingleChildScrollView unificado
+    body: SingleChildScrollView(
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50.withOpacity(0.5),
+              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("Registrar Nuevo Cliente", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _nombreController,
+                  decoration: const InputDecoration(
+                    labelText: "Nombre / Empresa",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.business_outlined),
+                    filled: true,
+                    fillColor: Colors.white,
+                    isDense: true,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _direccionController,
-                      decoration: const InputDecoration(
-                        labelText: "Dirección (Opcional)",
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.location_on_outlined),
-                        filled: true,
-                        fillColor: Colors.white,
-                        isDense: true,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _idController,
+                  decoration: const InputDecoration(
+                    labelText: "Identificación (NIT / CC)",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.badge_outlined),
+                    filled: true,
+                    fillColor: Colors.white,
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _telefonoController,
+                        decoration: const InputDecoration(
+                          labelText: "Teléfono (Opcional)",
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.phone_outlined),
+                          filled: true,
+                          fillColor: Colors.white,
+                          isDense: true,
+                        ),
+                        keyboardType: TextInputType.phone,
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade800,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  onPressed: _guardarCliente,
-                  icon: const Icon(Icons.person_add, size: 18),
-                  label: const Text("Registrar Cliente", style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _direccionController,
+                        decoration: const InputDecoration(
+                          labelText: "Dirección (Opcional)",
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.location_on_outlined),
+                          filled: true,
+                          fillColor: Colors.white,
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  height: 40,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade800,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: _guardarCliente,
+                    icon: const Icon(Icons.person_add, size: 18),
+                    label: const Text("Registrar Cliente", style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          color: Colors.grey.shade100,
-          child: Row(
-            children: [
-              const Icon(Icons.people_alt_outlined, size: 18, color: Colors.blue),
-              const SizedBox(width: 8),
-              Text("Clientes Registrados (${_clientes.length})", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
-            ],
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            color: Colors.grey.shade100,
+            child: Row(
+              children: [
+                const Icon(Icons.people_alt_outlined, size: 18, color: Colors.blue),
+                const SizedBox(width: 8),
+                Text("Clientes Registrados (${_clientes.length})", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
+              ],
+            ),
           ),
-        ),
-        Expanded(
-          child: _clientes.isEmpty
-              ? Center(
+          _clientes.isEmpty
+              ? Padding(
+            padding: const EdgeInsets.all(40.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -243,7 +246,8 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
             ),
           )
               : ListView.builder(
-            padding: const EdgeInsets.all(8),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             itemCount: _clientes.length,
             itemBuilder: (c, i) {
               final cliente = _clientes[i];
@@ -254,7 +258,7 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
 
               return Card(
                 elevation: 1,
-                margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 child: ListTile(
                   leading: CircleAvatar(
@@ -281,8 +285,8 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
               );
             },
           ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 }

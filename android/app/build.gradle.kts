@@ -5,8 +5,8 @@ plugins {
 
 android {
     compileSdk = 36
-    namespace = "com.example.rapicuentas"
-    ndkVersion = flutter.ndkVersion
+    namespace = "com.jukari.rapicuentas"
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -14,16 +14,22 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.rapicuentas"
+        applicationId = "com.jukari.rapicuentas"
         minSdk = flutter.minSdkVersion
-        targetSdk = 34
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        targetSdk = 35
+        versionCode = 10
+        versionName = "1.0.0"
+        multiDexEnabled = true
     }
 
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = false
+            isShrinkResources = false
+            ndk {
+                debugSymbolLevel = "symbol_table"
+            }
         }
     }
 }
@@ -41,4 +47,5 @@ flutter {
 dependencies {
     implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("com.google.android.play:integrity:1.3.0")
+    implementation("androidx.multidex:multidex:2.0.1")
 }

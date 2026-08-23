@@ -8,10 +8,10 @@ import 'historial_ventas_pantalla.dart';
 import 'ajustes_pantalla.dart';
 import 'pdf_generator.dart';
 import 'personalizacion_pdf_pantalla.dart';
+import 'play_billing_service.dart'; // 📌 Importación del servicio de Google Play Billing
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // 🚀 Inicializamos los anuncios en segundo plano sin bloquear el arranque de la app[cite: 8]
   MobileAds.instance.initialize();
   runApp(const MyApp());
 }
@@ -27,7 +27,6 @@ class MyApp extends StatelessWidget {
   );
 }
 
-// 🚀 Pantalla de Carga Inicial con Animación de Entrada Profesional (Estilo Cinematográfico)
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -43,39 +42,24 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
-
-    // Controlador de animación de alta fluidez (1.6 segundos)
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1600),
     );
-
-    // Animación de zoom/escala de entrada (de pequeño a tamaño real)
     _scaleAnimation = Tween<double>(begin: 0.7, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
     );
-
-    // Animación de aparición gradual (fade in)
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeIn),
     );
-
-    // Iniciamos la animación
     _controller.forward();
-
     _inicializarApp();
   }
 
   Future<void> _inicializarApp() async {
-    // 🚀 La base de datos carga en segundo plano de forma silenciosa[cite: 8]
     DatabaseHelper.instance.database;
-
-    // Esperamos a que la animación luzca perfecta antes de saltar a la app
     await Future.delayed(const Duration(milliseconds: 4000));
-
     if (!mounted) return;
-
-    // Transición suave hacia la navegación principal con fundido
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
@@ -106,7 +90,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Contenedor con estilo corporativo de alta gama para tu logotipo
                 Container(
                   width: 110,
                   height: 110,
@@ -139,7 +122,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   style: TextStyle(fontSize: 13, color: Colors.grey.shade600, letterSpacing: 0.5),
                 ),
                 const SizedBox(height: 50),
-                // Indicador de carga minimalista y elegante
                 SizedBox(
                   width: 30,
                   height: 30,
@@ -180,6 +162,18 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
   void initState() {
     super.initState();
     _verificarPrimerInicioUnicaVez();
+
+    // 🚀 Inicializamos Google Play Billing globalmente al arrancar la app
+    PlayBillingService().inicializar(() {
+      if (!mounted) return;
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("🚀 ¡Versión Pro activada con éxito a través de Google Play!"),
+          backgroundColor: Colors.green,
+        ),
+      );
+    });
   }
 
   Future<void> _verificarPrimerInicioUnicaVez() async {
@@ -207,8 +201,6 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
       body: Stack(
         children: [
           _pantallas[_indiceActual],
-
-          // 🌟 Ventana de Guía / Ayuda Profesional y Estética[cite: 8]
           if (_mostrarBienvenidaOverlay)
             AnimatedOpacity(
               opacity: _mostrarBienvenidaOverlay ? 1.0 : 0.0,
@@ -265,7 +257,6 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
                           style: TextStyle(fontSize: 13, color: Colors.grey),
                         ),
                         const SizedBox(height: 16),
-
                         _buildItemGuia(
                           icon: Icons.people_outline,
                           titulo: "1. Clientes",
@@ -293,7 +284,6 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
                           titulo: "5. Diseño",
                           descripcion: "Personaliza los colores corporativos y estilos de tus recibos PDF.",
                         ),
-
                         const SizedBox(height: 20),
                         SizedBox(
                           width: double.infinity,
@@ -316,7 +306,6 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
             ),
         ],
       ),
-      // 📌 Botón Flotante de Ayuda Fijo[cite: 8]
       floatingActionButton: FloatingActionButton(
         mini: true,
         backgroundColor: Colors.blue.shade800,

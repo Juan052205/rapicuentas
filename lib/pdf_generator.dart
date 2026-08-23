@@ -39,8 +39,13 @@ class PdfGenerator {
       throw Exception("⚠️ Modo offline detectado. Las cuentas gratuitas requieren conexión a internet para validar la pauta publicitaria. Conéctate a una red o hazte Pro para uso ilimitado offline.");
     }
 
+    // 🎯 ID real Intersticial diferenciado por plataforma
+    final String adUnitId = Platform.isAndroid
+        ? 'ca-app-pub-7567540983279751/3518002746'
+        : 'ca-app-pub-7567540983279751/2551621612';
+
     InterstitialAd.load(
-      adUnitId: 'ca-app-pub-3940256099942544/1033173712',
+      adUnitId: adUnitId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (InterstitialAd ad) {
@@ -115,7 +120,6 @@ class PdfGenerator {
     String metodoPago = venta['metodo_pago'] ?? 'Efectivo';
     String logoPath = ajustes['logo_path'] ?? '';
 
-    // 🔍 Extracción segura de los datos del cliente dentro del método asíncrono
     Map<String, dynamic>? clienteInfo;
     if (venta['cliente_id'] != null) {
       final db = await DatabaseHelper.instance.database;
@@ -222,7 +226,6 @@ class PdfGenerator {
               pw.Text("Dir Negocio: ${ajustes['direccion'] ?? 'No definido'}", style: const pw.TextStyle(fontSize: 7)),
               pw.Divider(thickness: 0.5),
 
-              // 👤 Bloque de Datos del Cliente en el Recibo
               pw.Text("CLIENTE: $nombreClientePdf", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -238,7 +241,6 @@ class PdfGenerator {
               pw.Text("Método de Pago: $metodoPago", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: colorCorporativo)),
               pw.Divider(thickness: 1, color: colorCorporativo),
 
-              // 👈 Estilo de tabla marcadamente perceptible según el estilo elegido
               pw.Table.fromTextArray(
                 headers: const ['Producto', 'Cant', 'V. Unit', 'Total'],
                 data: productosProcesados.map((p) {

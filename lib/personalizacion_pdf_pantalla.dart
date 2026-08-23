@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'database_helper.dart';
-import 'play_integrity_service.dart';
+import 'play_billing_service.dart';
 
 class PersonalizacionPdfPantalla extends StatefulWidget {
   const PersonalizacionPdfPantalla({super.key});
@@ -24,9 +24,9 @@ class _PersonalizacionPdfPantallaState extends State<PersonalizacionPdfPantalla>
     {'nombre': 'Rojo Elegante', 'color': Colors.red.shade800, 'pdfColor': PdfColors.red800},
     {'nombre': 'Vino Tinto', 'color': Colors.purple, 'pdfColor': PdfColors.purple},
     {'nombre': 'Naranja Corporativo', 'color': Colors.orange.shade800, 'pdfColor': PdfColors.orange800},
-    {'nombre': 'Gris Carbón', 'color': Colors.grey.shade800, 'pdfColor': PdfColors.grey800},
-    {'nombre': 'Marrón Café', 'color': Colors.brown, 'pdfColor': PdfColors.brown},
-    {'nombre': 'Azul Océano', 'color': Colors.cyan.shade800, 'pdfColor': PdfColors.cyan800},
+    {'nombre': 'Gris Carbon', 'color': Colors.grey.shade800, 'pdfColor': PdfColors.grey800},
+    {'nombre': 'Marron Cafe', 'color': Colors.brown, 'pdfColor': PdfColors.brown},
+    {'nombre': 'Azul Oceano', 'color': Colors.cyan.shade800, 'pdfColor': PdfColors.cyan800},
   ];
 
   @override
@@ -55,7 +55,7 @@ class _PersonalizacionPdfPantallaState extends State<PersonalizacionPdfPantalla>
     await DatabaseHelper.instance.actualizarEstilosPdf(_colorSeleccionado, _estiloTablaSeleccionado);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("✅ ¡Diseño de recibos actualizado con éxito!"), backgroundColor: Colors.green),
+      const SnackBar(content: Text("✅ ¡Diseno de recibos actualizado con exito!"), backgroundColor: Colors.green),
     );
   }
 
@@ -69,7 +69,7 @@ class _PersonalizacionPdfPantallaState extends State<PersonalizacionPdfPantalla>
             SizedBox(width: 8),
             Expanded(
               child: Text(
-                "Función Exclusiva Pro",
+                "Funcion Exclusiva Pro",
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 18),
               ),
@@ -86,23 +86,7 @@ class _PersonalizacionPdfPantallaState extends State<PersonalizacionPdfPantalla>
             style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
             onPressed: () async {
               Navigator.pop(c);
-              bool esLegitimo = await PlayIntegrityService.verificarLicenciaYPlayStore();
-
-              if (!context.mounted) return;
-              if (!esLegitimo) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("❌ Verificación de Play Integrity fallida."), backgroundColor: Colors.red),
-                );
-                return;
-              }
-
-              await DatabaseHelper.instance.actualizarEstadoPro(1);
-              setState(() => _esPro = 1);
-
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("🚀 ¡Versión Pro activada con éxito!"), backgroundColor: Colors.green),
-              );
+              await PlayBillingService().comprarVersionPro();
             },
             child: const Text("Hacerme Pro"),
           ),
@@ -114,7 +98,7 @@ class _PersonalizacionPdfPantallaState extends State<PersonalizacionPdfPantalla>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Diseño y Estilo Pro")),
+      appBar: AppBar(title: const Text("Diseno y Estilo Pro")),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -141,7 +125,7 @@ class _PersonalizacionPdfPantallaState extends State<PersonalizacionPdfPantalla>
                         children: [
                           const Text("Modo de Vista Previa", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                           const SizedBox(height: 2),
-                          Text("Prueba los diseños y activa Pro para guardarlos en tus recibos.", style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                          Text("Prueba los disenos y activa Pro para guardarlos en tus recibos.", style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
                         ],
                       ),
                     ),
@@ -151,7 +135,7 @@ class _PersonalizacionPdfPantallaState extends State<PersonalizacionPdfPantalla>
 
             const Text("🎨 Selecciona el Color Corporativo (10 Opciones)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             const SizedBox(height: 4),
-            const Text("Este color se aplicará en los títulos, totales y líneas principales de tus recibos PDF.", style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const Text("Este color se aplicara en los titulos, totales y lineas principales de tus recibos PDF.", style: TextStyle(fontSize: 12, color: Colors.grey)),
             const SizedBox(height: 15),
 
             GridView.builder(
@@ -225,17 +209,17 @@ class _PersonalizacionPdfPantallaState extends State<PersonalizacionPdfPantalla>
               items: const [
                 DropdownMenuItem(
                   value: 0,
-                  child: Text("Estándar Corporativo (Fondo Sombreado)", overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
+                  child: Text("Estandar Corporativo (Fondo Sombreado)", overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
                 ),
                 DropdownMenuItem(
                   value: 1,
-                  child: Text("Minimalista Ejecutivo (Líneas Limpias)", overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
+                  child: Text("Minimalista Ejecutivo (Lineas Limpias)", overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
                 ),
               ],
               selectedItemBuilder: (BuildContext context) {
                 return [
-                  const Text("Estándar Corporativo (Fondo Sombreado)", overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
-                  const Text("Minimalista Ejecutivo (Líneas Limpias)", overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
+                  const Text("Estandar Corporativo (Fondo Sombreado)", overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
+                  const Text("Minimalista Ejecutivo (Lineas Limpias)", overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
                 ];
               },
               onChanged: (val) => setState(() => _estiloTablaSeleccionado = val!),
@@ -253,7 +237,7 @@ class _PersonalizacionPdfPantallaState extends State<PersonalizacionPdfPantalla>
                 onPressed: _guardarEstilos,
                 icon: Icon(_esPro == 1 ? Icons.save : Icons.workspace_premium),
                 label: Text(
-                  _esPro == 1 ? "GUARDAR DISEÑO PRO" : "ACTIVAR CON VERSIÓN PRO",
+                  _esPro == 1 ? "GUARDAR DISENO PRO" : "ACTIVAR CON VERSION PRO",
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                 ),
               ),
