@@ -18,6 +18,7 @@ class _AjustesScreenState extends State<AjustesScreen> {
   final TextEditingController _nitController = TextEditingController();
   final TextEditingController _dirController = TextEditingController();
   final TextEditingController _resolucionDianController = TextEditingController();
+  final TextEditingController _prefijoController = TextEditingController();
 
   String _logoPath = '';
   bool _isLoading = false;
@@ -36,6 +37,7 @@ class _AjustesScreenState extends State<AjustesScreen> {
       _nitController.text = ajustes['nit'] ?? '';
       _dirController.text = ajustes['direccion'] ?? '';
       _resolucionDianController.text = ajustes['resolucion_dian'] ?? '';
+      _prefijoController.text = ajustes['prefijo_factura'] ?? 'FE';
       _logoPath = ajustes['logo_path'] ?? '';
       _esPro = ajustes['es_pro'] ?? 0;
     });
@@ -117,8 +119,15 @@ class _AjustesScreenState extends State<AjustesScreen> {
     setState(() => _isLoading = true);
 
     try {
+      String prefijoFinal = _prefijoController.text.trim().toUpperCase();
+      if (prefijoFinal.isEmpty) prefijoFinal = 'FE';
+
       await DatabaseHelper.instance.actualizarConfiguracion(
-          _nombreController.text, _nitController.text, _dirController.text, 19.0
+        _nombreController.text,
+        _nitController.text,
+        _dirController.text,
+        19.0,
+        prefijo: prefijoFinal,
       );
       await DatabaseHelper.instance.actualizarResolucionDian(_resolucionDianController.text);
       await DatabaseHelper.instance.actualizarLogoPath(_logoPath);
@@ -161,13 +170,33 @@ class _AjustesScreenState extends State<AjustesScreen> {
               const SizedBox(height: 15),
               TextField(controller: _dirController, decoration: const InputDecoration(labelText: "Dirección", border: OutlineInputBorder(), prefixIcon: Icon(Icons.location_on))),
               const SizedBox(height: 15),
-              TextField(
-                controller: _resolucionDianController,
-                decoration: const InputDecoration(
-                  labelText: "Resolución DIAN / Facturación Autorizada",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.verified_outlined),
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: TextField(
+                      controller: _prefijoController,
+                      decoration: const InputDecoration(
+                        labelText: "Prefijo (Ej: FAC)",
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.numbers),
+                      ),
+                      textCapitalization: TextCapitalization.characters,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 6,
+                    child: TextField(
+                      controller: _resolucionDianController,
+                      decoration: const InputDecoration(
+                        labelText: "Resolución DIAN",
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.verified_outlined),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
               const Divider(),

@@ -2,6 +2,11 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'models/ajustes.dart';
+import 'models/cliente.dart';
+import 'models/producto.dart';
+import 'models/venta.dart';
+
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
@@ -20,7 +25,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 21,
+      version: 22,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -60,6 +65,9 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE clientes ADD COLUMN telefono TEXT DEFAULT ""');
       await db.execute('ALTER TABLE clientes ADD COLUMN direccion TEXT DEFAULT ""');
     }
+    if (oldVersion < 22) {
+      await db.execute('ALTER TABLE ajustes_globales ADD COLUMN prefijo_factura TEXT DEFAULT "FE"');
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -86,15 +94,8 @@ class DatabaseHelper {
         logo_path TEXT DEFAULT "",
         pdf_color_index INTEGER DEFAULT 0,
         pdf_estilo_tabla INTEGER DEFAULT 0,
-        visto_bienvenida INTEGER DEFAULT 0
-      )
-    ''');
-    await db.execute('''
-      CREATE TABLE ventas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        cliente_id INTEGER, total REAL, fecha TEXT, 
-        productos_detalle TEXT, metodo_pago TEXT, tipo_documento TEXT,
-        observaciones TEXT
+        visto_bienvenida INTEGER DEFAULT 0,
+        prefijo_factura TEXT DEFAULT "FE"
       )
     ''');
     await db.insert('ajustes_globales', {
@@ -114,34 +115,34 @@ class DatabaseHelper {
       'logo_path': '',
       'pdf_color_index': 0,
       'pdf_estilo_tabla': 0,
-      'visto_bienvenida': 0
+      'visto_bienvenida': 0,
+      'prefijo_factura': 'FE'
     });
   }
 
-  Future<bool> debeMostrarBienvenida() async {
+  Future<Ajustes> obtenerAjustes() async {
     final db = await database;
-    final res = await db.query('ajustes_globales', columns: ['visto_bienvenida'], where: 'id = 1');
+    final res = await db.query('ajustes_globales', where: 'id = 1');
     if (res.isNotEmpty) {
-      return (res.first['visto_bienvenida'] as int? ?? 0) == 0;
+      return Ajustes.fromMap(res.first);
     }
-    return false;
-  }
-
-  Future<void> marcarBienvenidaVista() async {
-    final db = await database;
-    await db.update('ajustes_globales', {'visto_bienvenida': 1}, where: 'id = 1');
+    return Ajustes();
   }
 
   Future<Map<String, dynamic>> obtenerDatosPago() async {
     final db = await database;
     final res = await db.query('ajustes_globales', where: 'id = 1');
-    return res.isNotEmpty ? res.first : {'nombre_negocio': 'Mi Negocio', 'iva_porcentaje': 19.0, 'es_pro': 0, 'intentos_clonacion_restantes': 3};
+    return res.isNotEmpty ? res.first : {'nombre_negocio': 'Mi Negocio', 'iva_porcentaje': 19.0, 'es_pro': 0, 'intentos_clonacion_restantes': 3, 'prefijo_factura': 'FE'};
   }
 
-  Future<void> actualizarConfiguracion(String n, String nit, String dir, double iva) async {
+  Future<void> actualizarConfiguracion(String n, String nit, String dir, double iva, {String prefijo = 'FE'}) async {
     final db = await database;
     await db.update('ajustes_globales', {
-      'nombre_negocio': n, 'nit': nit, 'direccion': dir, 'iva_porcentaje': iva
+      'nombre_negocio': n,
+      'nit': nit,
+      'direccion': dir,
+      'iva_porcentaje': iva,
+      'prefijo_factura': prefijo
     }, where: 'id = 1');
   }
 
@@ -166,6 +167,20 @@ class DatabaseHelper {
       'pdf_color_index': colorIndex,
       'pdf_estilo_tabla': estiloTabla,
     }, where: 'id = 1');
+  }
+
+  Future<bool> debeMostrarBienvenida() async {
+    final db = await database;
+    final res = await db.query('ajustes_globales', columns: ['visto_bienvenida'], where: 'id = 1');
+    if (res.isNotEmpty) {
+      return (res.first['visto_bienvenida'] as int? ?? 0) == 0;
+    }
+    return false;
+  }
+
+  Future<void> marcarBienvenidaVista() async {
+    final db = await database;
+    await db.update('ajustes_globales', {'visto_bienvenida': 1}, where: 'id = 1');
   }
 
   Future<int> obtenerIntentosClonacion() async {
@@ -242,18 +257,6 @@ class DatabaseHelper {
     return 1;
   }
 
-  Future<int> insertarVenta(Map<String, dynamic> row) async => await (await database).insert('ventas', row);
-
-  Future<int> eliminarVenta(int id) async {
-    final db = await database;
-    return await db.delete('ventas', where: 'id = ?', whereArgs: [id]);
-  }
-
-  Future<List<Map<String, dynamic>>> obtenerHistorialVentas() async {
-    final db = await database;
-    return await db.rawQuery('SELECT v.*, c.nombre_empresa FROM ventas v LEFT JOIN clientes c ON v.cliente_id = c.id ORDER BY v.fecha DESC');
-  }
-
   Future<bool> puedeVerVideoRecompensa() async {
     final db = await database;
     final resultado = await db.query('ajustes_globales', columns: ['video_usado'], where: 'id = 1');
@@ -274,7 +277,26 @@ class DatabaseHelper {
     );
   }
 
-  // Clientes CRUD completo
+  // ==========================================
+  // CRUD CLIENTES
+  // ==========================================
+
+  Future<List<Cliente>> obtenerClientesModelo() async {
+    final db = await database;
+    final res = await db.query('clientes');
+    return res.map((map) => Cliente.fromMap(map)).toList();
+  }
+
+  Future<int> insertarClienteModelo(Cliente cliente) async {
+    final db = await database;
+    return await db.insert('clientes', cliente.toMap());
+  }
+
+  Future<int> actualizarClienteModelo(Cliente cliente) async {
+    final db = await database;
+    return await db.update('clientes', cliente.toMap(), where: 'id = ?', whereArgs: [cliente.id]);
+  }
+
   Future<int> insertarCliente(Map<String, dynamic> row) async => await (await database).insert('clientes', row);
   Future<List<Map<String, dynamic>>> obtenerClientes() async => await (await database).query('clientes');
   Future<int> actualizarCliente(int id, Map<String, dynamic> row) async {
@@ -286,7 +308,26 @@ class DatabaseHelper {
     return await db.delete('clientes', where: 'id = ?', whereArgs: [id]);
   }
 
-  // Productos CRUD completo
+  // ==========================================
+  // CRUD PRODUCTOS
+  // ==========================================
+
+  Future<List<Producto>> obtenerProductosModelo() async {
+    final db = await database;
+    final res = await db.query('productos');
+    return res.map((map) => Producto.fromMap(map)).toList();
+  }
+
+  Future<int> insertarProductoModelo(Producto producto) async {
+    final db = await database;
+    return await db.insert('productos', producto.toMap());
+  }
+
+  Future<int> actualizarProductoModelo(Producto producto) async {
+    final db = await database;
+    return await db.update('productos', producto.toMap(), where: 'id = ?', whereArgs: [producto.id]);
+  }
+
   Future<int> insertarProducto(Map<String, dynamic> row) async => await (await database).insert('productos', row);
   Future<List<Map<String, dynamic>>> obtenerProductosActivos() async => await (await database).query('productos');
   Future<int> actualizarProducto(int id, Map<String, dynamic> row) async {
@@ -296,5 +337,30 @@ class DatabaseHelper {
   Future<int> eliminarProducto(int id) async {
     final db = await database;
     return await db.delete('productos', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ==========================================
+  // CRUD VENTAS
+  // ==========================================
+
+  Future<List<Venta>> obtenerHistorialVentasModelo() async {
+    final db = await database;
+    final res = await db.rawQuery('SELECT v.*, c.nombre_empresa, c.telefono as cliente_telefono FROM ventas v LEFT JOIN clientes c ON v.cliente_id = c.id ORDER BY v.fecha DESC');
+    return res.map((map) => Venta.fromMap(map)).toList();
+  }
+
+  Future<int> insertarVentaModelo(Venta venta) async {
+    final db = await database;
+    return await db.insert('ventas', venta.toMap());
+  }
+
+  Future<int> insertarVenta(Map<String, dynamic> row) async => await (await database).insert('ventas', row);
+  Future<int> eliminarVenta(int id) async {
+    final db = await database;
+    return await db.delete('ventas', where: 'id = ?', whereArgs: [id]);
+  }
+  Future<List<Map<String, dynamic>>> obtenerHistorialVentas() async {
+    final db = await database;
+    return await db.rawQuery('SELECT v.*, c.nombre_empresa, c.telefono as cliente_telefono FROM ventas v LEFT JOIN clientes c ON v.cliente_id = c.id ORDER BY v.fecha DESC');
   }
 }

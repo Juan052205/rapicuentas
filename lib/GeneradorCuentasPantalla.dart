@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'database_helper.dart';
 import 'pdf_generator.dart';
+import 'ajustes_hub_pantalla.dart';
 
 class GeneradorCuentasPantalla extends StatefulWidget {
   final Map<String, dynamic>? ventaAClonar;
@@ -25,6 +26,18 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
   String _tipoDocumentoSeleccionado = 'COMPROBANTE DE VENTA';
   final List<String> _tiposDocumento = ['COMPROBANTE DE VENTA', 'COTIZACIÓN', 'RECIBO DE CAJA'];
 
+  bool _aplicarIva = false;
+  double _ivaPorcentaje = 19.0;
+  String _retencionSeleccionada = 'Ninguna';
+  double _retencionPorcentaje = 0.0;
+
+  final Map<String, double> _opcionesRetenciones = {
+    'Ninguna': 0.0,
+    'ReteFuente (4%)': 4.0,
+    'ReteICA (1%)': 1.0,
+    'ReteIVA (15%)': 15.0,
+  };
+
   final TextEditingController _observacionesController = TextEditingController();
 
   @override
@@ -33,14 +46,63 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
     _cargarDatosYClonacion();
   }
 
+  void _editarPrecioTemporalProducto(int index) {
+    final producto = _prods[index];
+    final controller = TextEditingController(text: producto['precio_unitario'].toString());
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: Text("Cambiar precio: ${producto['nombre_producto']}"),
+        content: TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: "Nuevo Precio Unitario",
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text("Cancelar"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              String textoPrecio = controller.text.trim().replaceAll(',', '.');
+              double nuevoPrecio = double.tryParse(textoPrecio) ?? (producto['precio_unitario'] as num).toDouble();
+
+              setState(() {
+                _prods[index]['precio_unitario'] = nuevoPrecio;
+              });
+
+              Navigator.pop(dialogContext);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("✅ Precio actualizado para esta factura"),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            child: const Text("Actualizar"),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _cargarDatosYClonacion() async {
     final p = await DatabaseHelper.instance.obtenerProductosActivos();
     final c = await DatabaseHelper.instance.obtenerClientes();
+    final ajustes = await DatabaseHelper.instance.obtenerDatosPago();
 
     if (!mounted) return;
     setState(() {
-      _prods = p;
+      _prods = p.map((e) => Map<String, dynamic>.from(e)).toList();
       _clientes = c;
+      _ivaPorcentaje = (ajustes['iva_porcentaje'] as num?)?.toDouble() ?? 19.0;
 
       if (widget.ventaAClonar != null) {
         final venta = widget.ventaAClonar!;
@@ -152,10 +214,17 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
         'observaciones': _observacionesController.text,
       };
 
-      // Intentamos generar la factura (aquí se valida el internet y el anuncio)
-      await PdfGenerator.generarFactura(nuevaVenta, false, 0.0);
+      await PdfGenerator.generarFactura(
+          nuevaVenta,
+          _aplicarIva,
+          _ivaPorcentaje,
+          retencionTipo: _retencionSeleccionada,
+          retencionPorcentaje: _retencionPorcentaje
+      );
 
       await DatabaseHelper.instance.insertarVenta(nuevaVenta);
+
+      final ajustes = await DatabaseHelper.instance.obtenerAjustes();
 
       setState(() {
         _carrito.clear();
@@ -164,11 +233,37 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
         _metodoSeleccionado = 'Efectivo';
         _tipoDocumentoSeleccionado = 'COMPROBANTE DE VENTA';
         _observacionesController.clear();
+        _aplicarIva = false;
+        _retencionSeleccionada = 'Ninguna';
+        _retencionPorcentaje = 0.0;
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ Venta registrada y generada")));
+
+      if (ajustes.esPro == 0 && ajustes.logoPath.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text("✅ Venta registrada. 💡 Agrega tu logotipo corporativo en Ajustes."),
+            backgroundColor: Colors.blue.shade900,
+            duration: const Duration(seconds: 5),
+            showCloseIcon: true,
+            closeIconColor: Colors.amber,
+            action: SnackBarAction(
+              label: "CONFIGURAR",
+              textColor: Colors.amber,
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AjustesHubPantalla()),
+                );
+              },
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("✅ Venta registrada y generada con éxito")));
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -183,150 +278,251 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text("Nueva Cuenta")),
-    body: Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              DropdownButtonFormField<int>(
-                decoration: const InputDecoration(
-                    labelText: "Cliente", border: OutlineInputBorder()),
-                value: _clienteSeleccionado?['id'],
-                items: _clientes
-                    .map((c) => DropdownMenuItem<int>(
-                  value: c['id'] as int,
-                  child: Text(c['nombre_empresa'] ?? ''),
-                ))
-                    .toList(),
-                onChanged: (int? nuevoId) => setState(() =>
-                _clienteSeleccionado = _clientes
-                    .firstWhere((c) => c['id'] == nuevoId)),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    flex: 6,
-                    child: DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                          labelText: "Tipo Doc.", border: OutlineInputBorder()),
-                      value: _tipoDocumentoSeleccionado,
-                      items: _tiposDocumento
-                          .map((t) => DropdownMenuItem(
-                        value: t,
-                        child: Text(t, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
-                      ))
-                          .toList(),
-                      selectedItemBuilder: (BuildContext context) {
-                        return _tiposDocumento.map<Widget>((String item) {
-                          return Text(
-                            item,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                          );
-                        }).toList();
-                      },
-                      onChanged: (val) => setState(() => _tipoDocumentoSeleccionado = val!),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    flex: 4,
-                    child: DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                          labelText: "Pago", border: OutlineInputBorder()),
-                      value: _metodoSeleccionado,
-                      items: _metodos
-                          .map((m) => DropdownMenuItem(
-                        value: m,
-                        child: Text(m, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
-                      ))
-                          .toList(),
-                      selectedItemBuilder: (BuildContext context) {
-                        return _metodos.map<Widget>((String item) {
-                          return Text(
-                            item,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                          );
-                        }).toList();
-                      },
-                      onChanged: (val) => setState(() => _metodoSeleccionado = val!),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _observacionesController,
-                decoration: const InputDecoration(
-                    labelText: "Observaciones / Términos (Opcional)",
-                    border: OutlineInputBorder()),
-                maxLines: 2,
-              ),
-            ],
-          ),
+    appBar: AppBar(
+      title: const Text("Nueva Cuenta"),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.settings),
+          tooltip: "Centro de Ajustes",
+          onPressed: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const AjustesHubPantalla()),
+            );
+            _cargarDatosYClonacion();
+          },
         ),
-        Expanded(
-          child: ListView.builder(
-            itemCount: _prods.length,
-            itemBuilder: (c, i) {
-              final producto = _prods[i];
-              final cantidadSeleccionada = _contarEnCarrito(producto['nombre_producto']);
-
-              return Card(
-                child: ListTile(
-                  title: Text(producto['nombre_producto']),
-                  subtitle: Text("\$${producto['precio_unitario']}"),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
+      ],
+    ),
+    body: SafeArea(
+      child: Column(
+        children: [
+          Expanded(
+            flex: 4,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  DropdownButtonFormField<int>(
+                    decoration: const InputDecoration(
+                        labelText: "Cliente", border: OutlineInputBorder()),
+                    value: _clienteSeleccionado?['id'],
+                    items: _clientes
+                        .map((c) => DropdownMenuItem<int>(
+                      value: c['id'] as int,
+                      child: Text(c['nombre_empresa'] ?? ''),
+                    ))
+                        .toList(),
+                    onChanged: (int? nuevoId) => setState(() =>
+                    _clienteSeleccionado = _clientes
+                        .firstWhere((c) => c['id'] == nuevoId)),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
                     children: [
-                      if (cantidadSeleccionada > 0) ...[
-                        IconButton(
-                          icon: const Icon(Icons.remove_circle, color: Colors.red),
-                          onPressed: () => _quitarDelCarrito(producto),
+                      Expanded(
+                        flex: 6,
+                        child: DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                              labelText: "Tipo Doc.", border: OutlineInputBorder()),
+                          value: _tipoDocumentoSeleccionado,
+                          items: _tiposDocumento
+                              .map((t) => DropdownMenuItem(
+                            value: t,
+                            child: Text(t, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                          ))
+                              .toList(),
+                          selectedItemBuilder: (BuildContext context) {
+                            return _tiposDocumento.map<Widget>((String item) {
+                              return Text(
+                                item,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                              );
+                            }).toList();
+                          },
+                          onChanged: (val) => setState(() => _tipoDocumentoSeleccionado = val!),
                         ),
-                        Text(
-                          '$cantidadSeleccionada',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 4,
+                        child: DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                              labelText: "Pago", border: OutlineInputBorder()),
+                          value: _metodoSeleccionado,
+                          items: _metodos
+                              .map((m) => DropdownMenuItem(
+                            value: m,
+                            child: Text(m, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                          ))
+                              .toList(),
+                          selectedItemBuilder: (BuildContext context) {
+                            return _metodos.map<Widget>((String item) {
+                              return Text(
+                                item,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                              );
+                            }).toList();
+                          },
+                          onChanged: (val) => setState(() => _metodoSeleccionado = val!),
                         ),
-                      ],
-                      IconButton(
-                        icon: const Icon(Icons.add_circle, color: Colors.blue),
-                        onPressed: () => _agregarAlCarrito(producto),
                       ),
                     ],
                   ),
-                ),
-              );
-            },
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.all(20),
-          color: Colors.blue.shade50,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text("Total: \$$_total",
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 18)),
-              ElevatedButton.icon(
-                onPressed: _finalizarVenta,
-                icon: const Icon(Icons.check_circle),
-                label: const Text("Finalizar"),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white),
+                  const SizedBox(height: 12),
+                  ExpansionTile(
+                    title: const Text("Configuración de Impuestos y Retenciones", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    leading: const Icon(Icons.calculate, color: Colors.blue),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                        child: Column(
+                          children: [
+                            SwitchListTile(
+                              title: Text("Aplicar IVA (${_ivaPorcentaje.toInt()}%)"),
+                              value: _aplicarIva,
+                              onChanged: (val) => setState(() => _aplicarIva = val),
+                            ),
+                            DropdownButtonFormField<String>(
+                              decoration: const InputDecoration(
+                                labelText: "Retención Aplicable",
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              value: _retencionSeleccionada,
+                              items: _opcionesRetenciones.keys.map((String key) {
+                                return DropdownMenuItem<String>(
+                                  value: key,
+                                  child: Text(key, style: const TextStyle(fontSize: 12)),
+                                );
+                              }).toList(),
+                              onChanged: (String? nuevoValor) {
+                                setState(() {
+                                  _retencionSeleccionada = nuevoValor!;
+                                  _retencionPorcentaje = _opcionesRetenciones[nuevoValor] ?? 0.0;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _observacionesController,
+                    decoration: const InputDecoration(
+                        labelText: "Observaciones / Términos (Opcional)",
+                        border: OutlineInputBorder()),
+                    maxLines: 2,
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ],
+          Container(
+            color: Colors.grey.shade100,
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Row(
+              children: [
+                const Icon(Icons.inventory_2_outlined, size: 18, color: Colors.blue),
+                const SizedBox(width: 8),
+                const Text(
+                  "Selección de Productos",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey),
+                ),
+                const Spacer(),
+                Text(
+                  "Toca + para agregar",
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, thickness: 1, color: Colors.grey),
+          Expanded(
+            flex: 5,
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+              itemCount: _prods.length,
+              itemBuilder: (c, i) {
+                final producto = _prods[i];
+                final cantidadSeleccionada = _contarEnCarrito(producto['nombre_producto']);
+
+                return Card(
+                  child: ListTile(
+                    title: Text(producto['nombre_producto']),
+                    subtitle: InkWell(
+                      onTap: () => _editarPrecioTemporalProducto(i),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "\$${producto['precio_unitario']}",
+                              style: TextStyle(
+                                color: Colors.blue.shade800,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(Icons.edit, size: 12, color: Colors.grey),
+                          ],
+                        ),
+                      ),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (cantidadSeleccionada > 0) ...[
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle, color: Colors.red),
+                            onPressed: () => _quitarDelCarrito(producto),
+                          ),
+                          Text(
+                            '$cantidadSeleccionada',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                        ],
+                        IconButton(
+                          icon: const Icon(Icons.add_circle, color: Colors.blue),
+                          onPressed: () => _agregarAlCarrito(producto),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 20, 70, 20),
+            color: Colors.blue.shade50,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text("Total: \$$_total",
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 18)),
+                ElevatedButton.icon(
+                  onPressed: _finalizarVenta,
+                  icon: const Icon(Icons.check_circle),
+                  label: const Text("Finalizar"),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }

@@ -39,7 +39,6 @@ class PdfGenerator {
       throw Exception("⚠️ Modo offline detectado. Las cuentas gratuitas requieren conexión a internet para validar la pauta publicitaria. Conéctate a una red o hazte Pro para uso ilimitado offline.");
     }
 
-    // 🎯 ID real Intersticial diferenciado por plataforma
     final String adUnitId = Platform.isAndroid
         ? 'ca-app-pub-7567540983279751/3518002746'
         : 'ca-app-pub-7567540983279751/2551621612';
@@ -119,6 +118,20 @@ class PdfGenerator {
     String resolucionDian = ajustes['resolucion_dian'] ?? '';
     String metodoPago = venta['metodo_pago'] ?? 'Efectivo';
     String logoPath = ajustes['logo_path'] ?? '';
+    String prefijo = (ajustes['prefijo_factura'] ?? 'FE').toString().toUpperCase();
+
+    String nequi = ajustes['nequi'] ?? '';
+    String daviplata = ajustes['daviplata'] ?? '';
+    String cuentaAhorros = ajustes['cuenta_ahorros'] ?? '';
+
+    String infoCuentaEspecifica = '';
+    if (metodoPago.contains('Nequi') && nequi.isNotEmpty) {
+      infoCuentaEspecifica = " - N° $nequi";
+    } else if (metodoPago.contains('Daviplata') && daviplata.isNotEmpty) {
+      infoCuentaEspecifica = " - N° $daviplata";
+    } else if ((metodoPago.contains('Cuenta') || metodoPago.contains('Bancaria')) && cuentaAhorros.isNotEmpty) {
+      infoCuentaEspecifica = " - N° $cuentaAhorros";
+    }
 
     Map<String, dynamic>? clienteInfo;
     if (venta['cliente_id'] != null) {
@@ -146,7 +159,7 @@ class PdfGenerator {
     }
 
     int consecutivoFactura = await DatabaseHelper.instance.obtenerYIncrementarConsecutivo();
-    String numeroFacturaFormateado = "FE-${consecutivoFactura.toString().padLeft(4, '0')}";
+    String numeroFacturaFormateado = "$prefijo-${consecutivoFactura.toString().padLeft(4, '0')}";
 
     double subtotal = (venta['total'] as num?)?.toDouble() ?? 0.0;
     double valorIva = aplicarImpuesto ? (subtotal * (ivaConfigurado / 100)) : 0.0;
@@ -183,6 +196,11 @@ class PdfGenerator {
       }
     }
     List<Map<String, dynamic>> productosProcesados = agrupados.values.toList();
+
+    List<String> mediosDisponibles = [];
+    if (nequi.isNotEmpty) mediosDisponibles.add("Nequi: $nequi");
+    if (daviplata.isNotEmpty) mediosDisponibles.add("Daviplata: $daviplata");
+    if (cuentaAhorros.isNotEmpty) mediosDisponibles.add("Cta Ahorros: $cuentaAhorros");
 
     pdf.addPage(
       pw.Page(
@@ -238,7 +256,7 @@ class PdfGenerator {
               if (dirClientePdf.isNotEmpty)
                 pw.Text("Dir: $dirClientePdf", style: const pw.TextStyle(fontSize: 6.5)),
 
-              pw.Text("Método de Pago: $metodoPago", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: colorCorporativo)),
+              pw.Text("Método de Pago: $metodoPago$infoCuentaEspecifica", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: colorCorporativo)),
               pw.Divider(thickness: 1, color: colorCorporativo),
 
               pw.Table.fromTextArray(
@@ -284,6 +302,17 @@ class PdfGenerator {
                     ],
                   ),
                 ),
+              if (mediosDisponibles.isNotEmpty)
+                pw.Padding(
+                  padding: const pw.EdgeInsets.only(top: 4),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text("Datos de Pago / Transferencia:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 6, color: colorCorporativo)),
+                      pw.Text(mediosDisponibles.join(" | "), style: const pw.TextStyle(fontSize: 5.5, color: PdfColors.grey800)),
+                    ],
+                  ),
+                ),
               pw.Spacer(),
               pw.Container(
                 alignment: pw.Alignment.centerRight,
@@ -309,8 +338,8 @@ class PdfGenerator {
                   padding: const pw.EdgeInsets.only(top: 2),
                   child: pw.Center(
                     child: pw.Text(
-                      "Generado con Rapicuentas - Descárgala gratis en Play Store",
-                      style: const pw.TextStyle(fontSize: 5, color: PdfColors.grey500),
+                      "Generado con Rapicuentas - Versión Gratuita",
+                      style: const pw.TextStyle(fontSize: 5.5, color: PdfColors.grey600),
                     ),
                   ),
                 ),

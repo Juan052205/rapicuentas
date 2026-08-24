@@ -19,7 +19,7 @@ class PlayBillingService {
   Future<void> inicializar(Function onProActivado) async {
     _isAvailable = await _inAppPurchase.isAvailable();
     if (!_isAvailable) {
-      debugPrint("⚠️ La tienda de Google Play no esta disponible.");
+      debugPrint("⚠️ La tienda de Google Play no está disponible.");
       return;
     }
 
@@ -72,8 +72,18 @@ class PlayBillingService {
     }
 
     final PurchaseParam purchaseParam = PurchaseParam(productDetails: productDetails);
-
     await _inAppPurchase.buyNonConsumable(purchaseParam: purchaseParam);
+  }
+
+  /// Permite a los usuarios restaurar sus compras previas al reinstalar la app
+  Future<void> restaurarCompras() async {
+    if (!_isAvailable) return;
+    try {
+      await _inAppPurchase.restorePurchases();
+      debugPrint("🔄 Solicitud de restauración enviada a Google Play.");
+    } catch (e) {
+      debugPrint("❌ Error al restaurar compras: $e");
+    }
   }
 
   Future<void> _procesarActualizacionesCompra(

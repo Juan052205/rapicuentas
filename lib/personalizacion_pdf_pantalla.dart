@@ -55,7 +55,7 @@ class _PersonalizacionPdfPantallaState extends State<PersonalizacionPdfPantalla>
     await DatabaseHelper.instance.actualizarEstilosPdf(_colorSeleccionado, _estiloTablaSeleccionado);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("✅ ¡Diseno de recibos actualizado con exito!"), backgroundColor: Colors.green),
+      const SnackBar(content: Text("✅ ¡Diseño de recibos actualizado con éxito!"), backgroundColor: Colors.green),
     );
   }
 
@@ -69,7 +69,7 @@ class _PersonalizacionPdfPantallaState extends State<PersonalizacionPdfPantalla>
             SizedBox(width: 8),
             Expanded(
               child: Text(
-                "Funcion Exclusiva Pro",
+                "Función Exclusiva Pro",
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 18),
               ),
@@ -98,151 +98,154 @@ class _PersonalizacionPdfPantallaState extends State<PersonalizacionPdfPantalla>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Diseno y Estilo Pro")),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_esPro == 0)
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.amber.shade200),
+      appBar: AppBar(title: const Text("Diseño y Estilo Pro")),
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_esPro == 0)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.lock_outline, color: Colors.amber, size: 28),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text("Modo de Vista Previa", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            const SizedBox(height: 2),
+                            Text("Prueba los diseños y activa Pro para guardarlos en tus recibos.", style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.lock_outline, color: Colors.amber, size: 28),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+
+              const Text("🎨 Selecciona el Color Corporativo (10 Opciones)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              const SizedBox(height: 4),
+              const Text("Este color se aplicará en los títulos, totales y líneas principales de tus recibos PDF.", style: TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 15),
+
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 3.2,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                ),
+                itemCount: _coloresDisponibles.length,
+                itemBuilder: (context, index) {
+                  final item = _coloresDisponibles[index];
+                  bool seleccionado = _colorSeleccionado == index;
+
+                  return InkWell(
+                    onTap: () => setState(() => _colorSeleccionado = index),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: seleccionado ? item['color'].withOpacity(0.15) : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: seleccionado ? item['color'] : Colors.grey.shade300,
+                          width: seleccionado ? 2 : 1,
+                        ),
+                      ),
+                      child: Row(
                         children: [
-                          const Text("Modo de Vista Previa", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                          const SizedBox(height: 2),
-                          Text("Prueba los disenos y activa Pro para guardarlos en tus recibos.", style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              color: item['color'],
+                              shape: BoxShape.circle,
+                            ),
+                            child: seleccionado ? const Icon(Icons.check, size: 14, color: Colors.white) : null,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              item['nombre'],
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: seleccionado ? FontWeight.bold : FontWeight.normal,
+                                color: seleccionado ? item['color'] : Colors.black87,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
 
-            const Text("🎨 Selecciona el Color Corporativo (10 Opciones)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-            const SizedBox(height: 4),
-            const Text("Este color se aplicara en los titulos, totales y lineas principales de tus recibos PDF.", style: TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 15),
+              const SizedBox(height: 25),
+              const Divider(),
+              const SizedBox(height: 15),
 
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 3.2,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-              ),
-              itemCount: _coloresDisponibles.length,
-              itemBuilder: (context, index) {
-                final item = _coloresDisponibles[index];
-                bool seleccionado = _colorSeleccionado == index;
+              const Text("📊 Estilo de la Tabla de Productos", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              const SizedBox(height: 10),
 
-                return InkWell(
-                  onTap: () => setState(() => _colorSeleccionado = index),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    decoration: BoxDecoration(
-                      color: seleccionado ? item['color'].withOpacity(0.15) : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: seleccionado ? item['color'] : Colors.grey.shade300,
-                        width: seleccionado ? 2 : 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 22,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            color: item['color'],
-                            shape: BoxShape.circle,
-                          ),
-                          child: seleccionado ? const Icon(Icons.check, size: 14, color: Colors.white) : null,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            item['nombre'],
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: seleccionado ? FontWeight.bold : FontWeight.normal,
-                              color: seleccionado ? item['color'] : Colors.black87,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
+              DropdownButtonFormField<int>(
+                isExpanded: true,
+                decoration: const InputDecoration(border: OutlineInputBorder(), labelText: "Formato del Recibo"),
+                value: _estiloTablaSeleccionado,
+                items: const [
+                  DropdownMenuItem(
+                    value: 0,
+                    child: Text("Estándar Corporativo (Fondo Sombreado)", overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
                   ),
-                );
-              },
-            ),
+                  DropdownMenuItem(
+                    value: 1,
+                    child: Text("Minimalista Ejecutivo (Líneas Limpias)", overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
+                  ),
+                ],
+                selectedItemBuilder: (BuildContext context) {
+                  return [
+                    const Text("Estándar Corporativo (Fondo Sombreado)", overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
+                    const Text("Minimalista Ejecutivo (Líneas Limpias)", overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
+                  ];
+                },
+                onChanged: (val) => setState(() => _estiloTablaSeleccionado = val!),
+              ),
 
-            const SizedBox(height: 25),
-            const Divider(),
-            const SizedBox(height: 15),
-
-            const Text("📊 Estilo de la Tabla de Productos", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-            const SizedBox(height: 10),
-
-            DropdownButtonFormField<int>(
-              isExpanded: true,
-              decoration: const InputDecoration(border: OutlineInputBorder(), labelText: "Formato del Recibo"),
-              value: _estiloTablaSeleccionado,
-              items: const [
-                DropdownMenuItem(
-                  value: 0,
-                  child: Text("Estandar Corporativo (Fondo Sombreado)", overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
-                ),
-                DropdownMenuItem(
-                  value: 1,
-                  child: Text("Minimalista Ejecutivo (Lineas Limpias)", overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
-                ),
-              ],
-              selectedItemBuilder: (BuildContext context) {
-                return [
-                  const Text("Estandar Corporativo (Fondo Sombreado)", overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
-                  const Text("Minimalista Ejecutivo (Lineas Limpias)", overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)),
-                ];
-              },
-              onChanged: (val) => setState(() => _estiloTablaSeleccionado = val!),
-            ),
-
-            const SizedBox(height: 30),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _esPro == 1 ? Colors.blue : Colors.amber.shade800,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: _guardarEstilos,
-                icon: Icon(_esPro == 1 ? Icons.save : Icons.workspace_premium),
-                label: Text(
-                  _esPro == 1 ? "GUARDAR DISENO PRO" : "ACTIVAR CON VERSION PRO",
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              const SizedBox(height: 30),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _esPro == 1 ? Colors.blue : Colors.amber.shade800,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: _guardarEstilos,
+                  icon: Icon(_esPro == 1 ? Icons.save : Icons.workspace_premium),
+                  label: Text(
+                    _esPro == 1 ? "GUARDAR DISEÑO PRO" : "ACTIVAR CON VERSION PRO",
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
