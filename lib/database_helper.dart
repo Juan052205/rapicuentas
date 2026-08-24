@@ -25,7 +25,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 22,
+      version: 23,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -68,6 +68,23 @@ class DatabaseHelper {
     if (oldVersion < 22) {
       await db.execute('ALTER TABLE ajustes_globales ADD COLUMN prefijo_factura TEXT DEFAULT "FE"');
     }
+    if (oldVersion < 23) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS ventas (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          cliente_id INTEGER,
+          total REAL,
+          fecha TEXT,
+          productos_detalle TEXT,
+          metodo_pago TEXT DEFAULT 'Efectivo',
+          tipo_documento TEXT DEFAULT 'COMPROBANTE DE VENTA',
+          observaciones TEXT DEFAULT ''
+        )
+      ''');
+      try {
+        await db.execute('ALTER TABLE ajustes_globales ADD COLUMN visto_tutorial_facturar INTEGER DEFAULT 0');
+      } catch (_) {}
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -82,6 +99,18 @@ class DatabaseHelper {
     ''');
     await db.execute('CREATE TABLE productos (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre_producto TEXT, precio_unitario REAL)');
     await db.execute('''
+      CREATE TABLE IF NOT EXISTS ventas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cliente_id INTEGER,
+        total REAL,
+        fecha TEXT,
+        productos_detalle TEXT,
+        metodo_pago TEXT DEFAULT 'Efectivo',
+        tipo_documento TEXT DEFAULT 'COMPROBANTE DE VENTA',
+        observaciones TEXT DEFAULT ''
+      )
+    ''');
+    await db.execute('''
       CREATE TABLE ajustes_globales (
         id INTEGER PRIMARY KEY, 
         nequi TEXT, daviplata TEXT, cuenta_ahorros TEXT, 
@@ -95,7 +124,8 @@ class DatabaseHelper {
         pdf_color_index INTEGER DEFAULT 0,
         pdf_estilo_tabla INTEGER DEFAULT 0,
         visto_bienvenida INTEGER DEFAULT 0,
-        prefijo_factura TEXT DEFAULT "FE"
+        prefijo_factura TEXT DEFAULT "FE",
+        visto_tutorial_facturar INTEGER DEFAULT 0
       )
     ''');
     await db.insert('ajustes_globales', {
@@ -116,7 +146,8 @@ class DatabaseHelper {
       'pdf_color_index': 0,
       'pdf_estilo_tabla': 0,
       'visto_bienvenida': 0,
-      'prefijo_factura': 'FE'
+      'prefijo_factura': 'FE',
+      'visto_tutorial_facturar': 0
     });
   }
 
@@ -183,6 +214,20 @@ class DatabaseHelper {
     await db.update('ajustes_globales', {'visto_bienvenida': 1}, where: 'id = 1');
   }
 
+  Future<bool> debeMostrarTutorialFacturar() async {
+    final db = await database;
+    final res = await db.query('ajustes_globales', columns: ['visto_tutorial_facturar'], where: 'id = 1');
+    if (res.isNotEmpty) {
+      return (res.first['visto_tutorial_facturar'] as int? ?? 0) == 0;
+    }
+    return true;
+  }
+
+  Future<void> marcarTutorialFacturarVisto() async {
+    final db = await database;
+    await db.update('ajustes_globales', {'visto_tutorial_facturar': 1}, where: 'id = 1');
+  }
+
   Future<int> obtenerIntentosClonacion() async {
     final db = await database;
     final res = await db.query('ajustes_globales', columns: ['intentos_clonacion_restantes', 'es_pro'], where: 'id = 1');
@@ -242,7 +287,6 @@ class DatabaseHelper {
     );
   }
 
-  // ATOMICIDAD: Lectura e Incremento separados
   Future<int> obtenerConsecutivoActual() async {
     final db = await database;
     final res = await db.query('ajustes_globales', columns: ['consecutivo_factura'], where: 'id = 1');

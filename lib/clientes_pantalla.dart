@@ -22,6 +22,15 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
     _cargarClientes();
   }
 
+  @override
+  void dispose() {
+    _nombreController.dispose();
+    _idController.dispose();
+    _telefonoController.dispose();
+    _direccionController.dispose();
+    super.dispose();
+  }
+
   Future<void> _cargarClientes() async {
     final data = await DatabaseHelper.instance.obtenerClientesModelo();
     if (!mounted) return;
@@ -84,7 +93,16 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar")),
+          TextButton(
+            onPressed: () {
+              editNombre.dispose();
+              editId.dispose();
+              editTelefono.dispose();
+              editDireccion.dispose();
+              Navigator.pop(context);
+            },
+            child: const Text("Cancelar"),
+          ),
           ElevatedButton(
             onPressed: () async {
               if (editNombre.text.isNotEmpty) {
@@ -97,6 +115,12 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
                 );
 
                 await DatabaseHelper.instance.actualizarClienteModelo(clienteActualizado);
+
+                editNombre.dispose();
+                editId.dispose();
+                editTelefono.dispose();
+                editDireccion.dispose();
+
                 if (!context.mounted) return;
                 Navigator.pop(context);
                 _cargarClientes();

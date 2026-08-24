@@ -148,16 +148,25 @@ class NavegacionPrincipal extends StatefulWidget {
 }
 
 class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
-  int _indiceActual = 2; // Inicia en Facturar como pestaña principal
+  int _indiceActual = 2; // Inicia en la pestaña Facturar
   bool _mostrarBienvenidaOverlay = false;
 
-  final List<Widget> _pantallas = [
-    const ClientesPantalla(),
-    const ProductosPantalla(),
-    const GeneradorCuentasPantalla(),
-    const HistorialVentasPantalla(),
-    const AjustesHubPantalla(),
-  ];
+  Widget _obtenerPantallaActual(int index) {
+    switch (index) {
+      case 0:
+        return const ClientesPantalla();
+      case 1:
+        return const ProductosPantalla();
+      case 2:
+        return const GeneradorCuentasPantalla();
+      case 3:
+        return const HistorialVentasPantalla();
+      case 4:
+        return const AjustesHubPantalla();
+      default:
+        return const GeneradorCuentasPantalla();
+    }
+  }
 
   @override
   void initState() {
@@ -200,7 +209,7 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
     return Scaffold(
       body: Stack(
         children: [
-          _pantallas[_indiceActual],
+          _obtenerPantallaActual(_indiceActual),
           if (_mostrarBienvenidaOverlay)
             AnimatedOpacity(
               opacity: _mostrarBienvenidaOverlay ? 1.0 : 0.0,

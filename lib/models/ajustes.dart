@@ -16,6 +16,8 @@ class Ajustes {
   final int pdfColorIndex;
   final int pdfEstiloTabla;
   final int vistoBienvenida;
+  final String prefijoFactura;
+  final int vistoTutorialFacturar;
 
   Ajustes({
     this.id = 1,
@@ -35,6 +37,8 @@ class Ajustes {
     this.pdfColorIndex = 0,
     this.pdfEstiloTabla = 0,
     this.vistoBienvenida = 0,
+    this.prefijoFactura = 'FE',
+    this.vistoTutorialFacturar = 0,
   });
 
   factory Ajustes.fromMap(Map<String, dynamic> map) {
@@ -56,6 +60,8 @@ class Ajustes {
       pdfColorIndex: map['pdf_color_index'] as int? ?? 0,
       pdfEstiloTabla: map['pdf_estilo_tabla'] as int? ?? 0,
       vistoBienvenida: map['visto_bienvenida'] as int? ?? 0,
+      prefijoFactura: map['prefijo_factura'] ?? 'FE',
+      vistoTutorialFacturar: map['visto_tutorial_facturar'] as int? ?? 0,
     );
   }
 
@@ -78,6 +84,8 @@ class Ajustes {
       'pdf_color_index': pdfColorIndex,
       'pdf_estilo_tabla': pdfEstiloTabla,
       'visto_bienvenida': vistoBienvenida,
+      'prefijo_factura': prefijoFactura,
+      'visto_tutorial_facturar': vistoTutorialFacturar,
     };
   }
 }

@@ -20,6 +20,13 @@ class _ProductosPantallaState extends State<ProductosPantalla> {
     _cargarProductos();
   }
 
+  @override
+  void dispose() {
+    _nombreController.dispose();
+    _precioController.dispose();
+    super.dispose();
+  }
+
   Future<void> _cargarProductos() async {
     final data = await DatabaseHelper.instance.obtenerProductosModelo();
     if (!mounted) return;
@@ -73,7 +80,14 @@ class _ProductosPantallaState extends State<ProductosPantalla> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar")),
+          TextButton(
+            onPressed: () {
+              editNombre.dispose();
+              editPrecio.dispose();
+              Navigator.pop(context);
+            },
+            child: const Text("Cancelar"),
+          ),
           ElevatedButton(
             onPressed: () async {
               final nuevoPrecio = double.tryParse(editPrecio.text.replaceAll(',', '.')) ?? 0.0;
@@ -85,6 +99,10 @@ class _ProductosPantallaState extends State<ProductosPantalla> {
                 );
 
                 await DatabaseHelper.instance.actualizarProductoModelo(productoActualizado);
+
+                editNombre.dispose();
+                editPrecio.dispose();
+
                 if (!context.mounted) return;
                 Navigator.pop(context);
                 _cargarProductos();
