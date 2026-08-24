@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'database_helper.dart';
 import 'models/producto.dart';
+import 'widgets/pro_upsell_modal.dart';
 
 class ProductosPantalla extends StatefulWidget {
   const ProductosPantalla({super.key});
@@ -13,6 +14,7 @@ class _ProductosPantallaState extends State<ProductosPantalla> {
   final _nombreController = TextEditingController();
   final _precioController = TextEditingController();
   List<Producto> _productos = [];
+  int _esPro = 0;
 
   @override
   void initState() {
@@ -29,8 +31,12 @@ class _ProductosPantallaState extends State<ProductosPantalla> {
 
   Future<void> _cargarProductos() async {
     final data = await DatabaseHelper.instance.obtenerProductosModelo();
+    final datosPago = await DatabaseHelper.instance.obtenerDatosPago();
     if (!mounted) return;
-    setState(() => _productos = data);
+    setState(() {
+      _productos = data;
+      _esPro = datosPago['es_pro'] ?? 0;
+    });
   }
 
   Future<void> _guardarProducto() async {
@@ -144,9 +150,57 @@ class _ProductosPantallaState extends State<ProductosPantalla> {
     );
   }
 
+  Widget _buildBotonPro() {
+    if (_esPro == 1) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(right: 12.0),
+      child: Center(
+        child: InkWell(
+          onTap: () => ProUpsellModal.mostrar(context),
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.amber.shade700, Colors.orange.shade800],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.amber.withOpacity(0.35),
+                  blurRadius: 5,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.workspace_premium, color: Colors.white, size: 15),
+                SizedBox(width: 4),
+                Text(
+                  "PRO",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text("Gestión de Productos")),
+    appBar: AppBar(
+      title: const Text("Gestión de Productos"),
+      actions: [_buildBotonPro()],
+    ),
     body: SafeArea(
       child: Column(
         children: [

@@ -5,6 +5,8 @@ import 'ajustes_pantalla.dart';
 import 'configuracion_pantalla.dart';
 import 'personalizacion_pdf_pantalla.dart';
 import 'widgets/comparacion_pro_widget.dart';
+import 'widgets/pro_upsell_modal.dart';
+import 'play_billing_service.dart';
 
 class AjustesHubPantalla extends StatefulWidget {
   const AjustesHubPantalla({super.key});
@@ -91,6 +93,28 @@ class _AjustesHubPantallaState extends State<AjustesHubPantalla> {
               ),
               const SizedBox(height: 16),
               const ComparacionProWidget(),
+              const SizedBox(height: 16),
+              Center(
+                child: TextButton.icon(
+                  onPressed: () async {
+                    await PlayBillingService().restaurarCompras();
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("🔄 Solicitud de restauración enviada a Google Play Store"),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    _cargarAjustes();
+                  },
+                  icon: const Icon(Icons.restore, color: Colors.grey, size: 18),
+                  label: const Text(
+                    "Restablecer compras previas",
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
             ],
           ),
         ),
@@ -100,56 +124,66 @@ class _AjustesHubPantallaState extends State<AjustesHubPantalla> {
 
   Widget _buildTarjetaProStatus() {
     bool esPro = _ajustes?.esPro == 1;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: esPro
-              ? [Colors.blue.shade900, Colors.blue.shade700]
-              : [Colors.amber.shade800, Colors.amber.shade600],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: (esPro ? Colors.blue : Colors.amber).withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+    return InkWell(
+      onTap: () {
+        if (!esPro) {
+          ProUpsellModal.mostrar(context);
+        }
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: esPro
+                ? [Colors.blue.shade900, Colors.blue.shade700]
+                : [Colors.amber.shade800, Colors.amber.shade600],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Icon(
-            esPro ? Icons.workspace_premium : Icons.stars_outlined,
-            color: Colors.white,
-            size: 36,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  esPro ? "Licencia Rapicuentas Pro Activa" : "Versión Gratuita / Freemium",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  esPro
-                      ? "Acceso ilimitado sin anuncios y personalización completa."
-                      : "Te restan ${_ajustes?.intentosClonacionRestantes ?? 3} clonaciones.",
-                  style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 12),
-                ),
-              ],
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: (esPro ? Colors.blue : Colors.amber).withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
-          ),
-        ],
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(
+              esPro ? Icons.workspace_premium : Icons.stars_outlined,
+              color: Colors.white,
+              size: 36,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    esPro ? "Licencia Rapicuentas Pro Activa" : "Versión Gratuita / Freemium",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    esPro
+                        ? "Acceso ilimitado sin anuncios y personalización completa."
+                        : "Te restan ${_ajustes?.intentosClonacionRestantes ?? 3} clonaciones. Toca para ser Pro 🚀",
+                    style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            if (!esPro)
+              const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+          ],
+        ),
       ),
     );
   }

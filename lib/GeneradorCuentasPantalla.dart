@@ -4,6 +4,7 @@ import 'database_helper.dart';
 import 'pdf_generator.dart';
 import 'ajustes_hub_pantalla.dart';
 import 'widgets/guia_facturar_tip.dart';
+import 'widgets/pro_upsell_modal.dart';
 
 class GeneradorCuentasPantalla extends StatefulWidget {
   final Map<String, dynamic>? ventaAClonar;
@@ -22,6 +23,7 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
   double _total = 0.0;
 
   bool _mostrarTutorial = false;
+  int _esPro = 0;
 
   String _metodoSeleccionado = 'Efectivo';
   final List<String> _metodos = ['Efectivo', 'Nequi', 'Daviplata', 'Cuenta Bancaria'];
@@ -72,6 +74,7 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
       _prods = p.map((e) => Map<String, dynamic>.from(e)).toList();
       _clientes = c;
       _ivaPorcentaje = (ajustes['iva_porcentaje'] as num?)?.toDouble() ?? 19.0;
+      _esPro = ajustes['es_pro'] ?? 0;
       _mostrarTutorial = debeMostrarTip;
 
       if (_clienteSeleccionado != null) {
@@ -308,6 +311,51 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
     }
   }
 
+  Widget _buildBotonPro() {
+    if (_esPro == 1) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(right: 6.0),
+      child: Center(
+        child: InkWell(
+          onTap: () => ProUpsellModal.mostrar(context),
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.amber.shade700, Colors.orange.shade800],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.amber.withOpacity(0.35),
+                  blurRadius: 5,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.workspace_premium, color: Colors.white, size: 15),
+                SizedBox(width: 4),
+                Text(
+                  "PRO",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     double valorIva = _aplicarIva ? (_total * (_ivaPorcentaje / 100)) : 0.0;
@@ -318,6 +366,7 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
       appBar: AppBar(
         title: const Text("Nueva Cuenta"),
         actions: [
+          _buildBotonPro(),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: "Recargar Datos",

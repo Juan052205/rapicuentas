@@ -16,6 +16,7 @@ class HistorialVentasPantalla extends StatefulWidget {
 
 class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
   List<Map<String, dynamic>> _ventas = [];
+  int _esPro = 0;
 
   @override
   void initState() {
@@ -25,8 +26,12 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
 
   Future<void> _cargarHistorial() async {
     final data = await DatabaseHelper.instance.obtenerHistorialVentas();
+    final datosPago = await DatabaseHelper.instance.obtenerDatosPago();
     if (!mounted) return;
-    setState(() => _ventas = data);
+    setState(() {
+      _ventas = data;
+      _esPro = datosPago['es_pro'] ?? 0;
+    });
   }
 
   Future<void> _mostrarModuloAnalitico(BuildContext context) async {
@@ -385,11 +390,57 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
     }
   }
 
+  Widget _buildBotonPro() {
+    if (_esPro == 1) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(right: 6.0),
+      child: Center(
+        child: InkWell(
+          onTap: () => ProUpsellModal.mostrar(context),
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.amber.shade700, Colors.orange.shade800],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.amber.withOpacity(0.35),
+                  blurRadius: 5,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.workspace_premium, color: Colors.white, size: 15),
+                SizedBox(width: 4),
+                Text(
+                  "PRO",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text("Historial de Ventas"),
       actions: [
+        _buildBotonPro(),
         IconButton(
           icon: const Icon(Icons.bar_chart),
           tooltip: "Módulo Analítico",

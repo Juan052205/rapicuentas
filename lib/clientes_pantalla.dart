@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'database_helper.dart';
 import 'models/cliente.dart';
+import 'widgets/pro_upsell_modal.dart';
 
 class ClientesPantalla extends StatefulWidget {
   const ClientesPantalla({super.key});
@@ -15,6 +16,7 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
   final _telefonoController = TextEditingController();
   final _direccionController = TextEditingController();
   List<Cliente> _clientes = [];
+  int _esPro = 0;
 
   @override
   void initState() {
@@ -33,8 +35,12 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
 
   Future<void> _cargarClientes() async {
     final data = await DatabaseHelper.instance.obtenerClientesModelo();
+    final datosPago = await DatabaseHelper.instance.obtenerDatosPago();
     if (!mounted) return;
-    setState(() => _clientes = data);
+    setState(() {
+      _clientes = data;
+      _esPro = datosPago['es_pro'] ?? 0;
+    });
   }
 
   Future<void> _guardarCliente() async {
@@ -162,9 +168,57 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
     );
   }
 
+  Widget _buildBotonPro() {
+    if (_esPro == 1) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(right: 12.0),
+      child: Center(
+        child: InkWell(
+          onTap: () => ProUpsellModal.mostrar(context),
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.amber.shade700, Colors.orange.shade800],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.amber.withOpacity(0.35),
+                  blurRadius: 5,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.workspace_premium, color: Colors.white, size: 15),
+                SizedBox(width: 4),
+                Text(
+                  "PRO",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text("Gestión de Clientes")),
+    appBar: AppBar(
+      title: const Text("Gestión de Clientes"),
+      actions: [_buildBotonPro()],
+    ),
     body: SafeArea(
       child: SingleChildScrollView(
         child: Column(
