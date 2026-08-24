@@ -25,7 +25,8 @@
 
         <activity
             android:name="com.yalantis.ucrop.UCropActivity"
-            android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
+            android:screenOrientation="portrait"
+            android:theme="@style/UCropCustomTheme" />
 
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"

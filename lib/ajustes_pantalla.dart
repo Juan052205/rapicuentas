@@ -30,6 +30,16 @@ class _AjustesScreenState extends State<AjustesScreen> {
     _cargarAjustes();
   }
 
+  @override
+  void dispose() {
+    _nombreController.dispose();
+    _nitController.dispose();
+    _dirController.dispose();
+    _resolucionDianController.dispose();
+    _prefijoController.dispose();
+    super.dispose();
+  }
+
   Future<void> _cargarAjustes() async {
     final ajustes = await DatabaseHelper.instance.obtenerDatosPago();
     setState(() {
@@ -67,10 +77,14 @@ class _AjustesScreenState extends State<AjustesScreen> {
         uiSettings: [
           AndroidUiSettings(
             toolbarTitle: 'Ajustar Logotipo',
-            toolbarColor: Colors.blue,
+            toolbarColor: Colors.blue.shade800,
             toolbarWidgetColor: Colors.white,
+            statusBarColor: Colors.blue.shade900,
+            activeControlsWidgetColor: Colors.blue.shade800,
             initAspectRatio: CropAspectRatioPreset.square,
             lockAspectRatio: false,
+            hideBottomControls: false,
+            showCropGrid: true,
             aspectRatioPresets: [
               CropAspectRatioPreset.square,
               CropAspectRatioPreset.ratio3x2,

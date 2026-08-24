@@ -77,6 +77,8 @@ class PdfGenerator {
       await _gestionarAnuncioYExportar(() async {
         final pdf = await _construirDocumentoPdf(venta, aplicarImpuesto, ivaConfigurado, retencionTipo: retencionTipo, retencionPorcentaje: retencionPorcentaje);
         await Printing.layoutPdf(onLayout: (format) async => pdf.save());
+        // Incremento atómico post-compilación exitosa
+        await DatabaseHelper.instance.incrementarConsecutivo();
       });
     } catch (e) {
       debugPrint("Error de exportación: $e");
@@ -158,7 +160,7 @@ class PdfGenerator {
       }
     }
 
-    int consecutivoFactura = await DatabaseHelper.instance.obtenerYIncrementarConsecutivo();
+    int consecutivoFactura = await DatabaseHelper.instance.obtenerConsecutivoActual();
     String numeroFacturaFormateado = "$prefijo-${consecutivoFactura.toString().padLeft(4, '0')}";
 
     double subtotal = (venta['total'] as num?)?.toDouble() ?? 0.0;

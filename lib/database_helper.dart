@@ -242,19 +242,19 @@ class DatabaseHelper {
     );
   }
 
-  Future<int> obtenerYIncrementarConsecutivo() async {
+  // ATOMICIDAD: Lectura e Incremento separados
+  Future<int> obtenerConsecutivoActual() async {
     final db = await database;
     final res = await db.query('ajustes_globales', columns: ['consecutivo_factura'], where: 'id = 1');
     if (res.isNotEmpty) {
-      int actual = res.first['consecutivo_factura'] as int? ?? 1;
-      await db.update(
-        'ajustes_globales',
-        {'consecutivo_factura': actual + 1},
-        where: 'id = 1',
-      );
-      return actual;
+      return res.first['consecutivo_factura'] as int? ?? 1;
     }
     return 1;
+  }
+
+  Future<void> incrementarConsecutivo() async {
+    final db = await database;
+    await db.rawUpdate('UPDATE ajustes_globales SET consecutivo_factura = consecutivo_factura + 1 WHERE id = 1');
   }
 
   Future<bool> puedeVerVideoRecompensa() async {
@@ -277,10 +277,7 @@ class DatabaseHelper {
     );
   }
 
-  // ==========================================
   // CRUD CLIENTES
-  // ==========================================
-
   Future<List<Cliente>> obtenerClientesModelo() async {
     final db = await database;
     final res = await db.query('clientes');
@@ -308,10 +305,7 @@ class DatabaseHelper {
     return await db.delete('clientes', where: 'id = ?', whereArgs: [id]);
   }
 
-  // ==========================================
   // CRUD PRODUCTOS
-  // ==========================================
-
   Future<List<Producto>> obtenerProductosModelo() async {
     final db = await database;
     final res = await db.query('productos');
@@ -339,10 +333,7 @@ class DatabaseHelper {
     return await db.delete('productos', where: 'id = ?', whereArgs: [id]);
   }
 
-  // ==========================================
   // CRUD VENTAS
-  // ==========================================
-
   Future<List<Venta>> obtenerHistorialVentasModelo() async {
     final db = await database;
     final res = await db.rawQuery('SELECT v.*, c.nombre_empresa, c.telefono as cliente_telefono FROM ventas v LEFT JOIN clientes c ON v.cliente_id = c.id ORDER BY v.fecha DESC');

@@ -46,6 +46,12 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
     _cargarDatosYClonacion();
   }
 
+  @override
+  void dispose() {
+    _observacionesController.dispose(); // Liberación de memoria
+    super.dispose();
+  }
+
   void _editarPrecioTemporalProducto(int index) {
     final producto = _prods[index];
     final controller = TextEditingController(text: producto['precio_unitario'].toString());
