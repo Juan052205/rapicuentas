@@ -38,31 +38,70 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
     final ajustes = await DatabaseHelper.instance.obtenerAjustes();
     bool esPro = ajustes.esPro == 1;
 
-    double totalVentasGlobal = _ventas.fold(0.0, (sum, item) => sum + ((item['total'] as num?)?.toDouble() ?? 0.0));
+    double totalVentasGlobal = _ventas.fold(
+      0.0,
+          (sum, item) => sum + ((item['total'] as num?)?.toDouble() ?? 0.0),
+    );
     int cantidadVentas = _ventas.length;
-    double promedioVenta = cantidadVentas > 0 ? totalVentasGlobal / cantidadVentas : 0.0;
+    double promedioVenta =
+    cantidadVentas > 0 ? totalVentasGlobal / cantidadVentas : 0.0;
+
+    // --- Mes actual y mes anterior ---
+    final ahora = DateTime.now();
+    final inicioMesActual = DateTime(ahora.year, ahora.month, 1);
+    final inicioMesAnterior = DateTime(ahora.year, ahora.month - 1, 1);
+    final finMesAnterior = inicioMesActual.subtract(const Duration(seconds: 1));
+
+    double totalMesActual = 0;
+    int cantMesActual = 0;
+    double totalMesAnterior = 0;
+    int cantMesAnterior = 0;
 
     Map<String, double> metodosPagoConteo = {};
     Map<String, int> productosTop = {};
 
-    if (esPro) {
-      for (var v in _ventas) {
-        String metodo = v['metodo_pago'] ?? 'Efectivo';
-        double val = (v['total'] as num?)?.toDouble() ?? 0.0;
-        metodosPagoConteo[metodo] = (metodosPagoConteo[metodo] ?? 0.0) + val;
+    for (var v in _ventas) {
+      final totalVenta = (v['total'] as num?)?.toDouble() ?? 0.0;
+      final fecha = DateTime.tryParse(v['fecha']?.toString() ?? '');
+
+      if (fecha != null) {
+        if (!fecha.isBefore(inicioMesActual)) {
+          totalMesActual += totalVenta;
+          cantMesActual++;
+        } else if (!fecha.isBefore(inicioMesAnterior) &&
+            !fecha.isAfter(finMesAnterior)) {
+          totalMesAnterior += totalVenta;
+          cantMesAnterior++;
+        }
+      }
+
+      if (esPro) {
+        final metodo = v['metodo_pago'] ?? 'Efectivo';
+        metodosPagoConteo[metodo] =
+            (metodosPagoConteo[metodo] ?? 0.0) + totalVenta;
 
         try {
           if (v['productos_detalle'] != null) {
-            List<dynamic> prods = jsonDecode(v['productos_detalle']);
+            final List<dynamic> prods = jsonDecode(v['productos_detalle']);
             for (var p in prods) {
-              String nombre = (p['nombre'] ?? p['nombre_producto'] ?? 'Producto').toString();
-              int cant = (p['cant'] as num?)?.toInt() ?? 1;
+              final nombre =
+              (p['nombre'] ?? p['nombre_producto'] ?? 'Producto').toString();
+              final cant = (p['cant'] as num?)?.toInt() ?? 1;
               productosTop[nombre] = (productosTop[nombre] ?? 0) + cant;
             }
           }
         } catch (_) {}
       }
     }
+
+    // Nombres de mes para mostrar
+    const meses = [
+      '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    final nombreMesActual = meses[ahora.month];
+    final mesAntRef = DateTime(ahora.year, ahora.month - 1, 1);
+    final nombreMesAnterior = meses[mesAntRef.month];
 
     if (!context.mounted) return;
 
@@ -89,33 +128,83 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Total Facturado: \$${totalVentasGlobal.toStringAsFixed(0)}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(
+                  "Total Facturado: \$${totalVentasGlobal.toStringAsFixed(0)}",
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
                 const SizedBox(height: 6),
                 Text("Comprobantes Emitidos: $cantidadVentas"),
                 Text("Ticket Promedio: \$${promedioVenta.toStringAsFixed(0)}"),
                 const Divider(height: 20),
 
+                // Bloque mes actual / anterior (visible para todos; detalle extra solo Pro)
+                Text(
+                  "📅 $nombreMesActual: \$${totalMesActual.toStringAsFixed(0)} · $cantMesActual facturas",
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "📅 $nombreMesAnterior: \$${totalMesAnterior.toStringAsFixed(0)} · $cantMesAnterior facturas",
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                ),
+
                 if (esPro) ...[
-                  const Text("📊 Desglose por Método de Pago:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueAccent)),
+                  const Divider(height: 20),
+                  const Text(
+                    "📊 Desglose por Método de Pago:",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: Colors.blueAccent,
+                    ),
+                  ),
                   const SizedBox(height: 6),
                   if (metodosPagoConteo.isEmpty)
-                    const Text("Sin datos suficientes", style: TextStyle(fontSize: 11, color: Colors.grey))
+                    const Text(
+                      "Sin datos suficientes",
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    )
                   else
-                    ...metodosPagoConteo.entries.map((e) => Padding(
-                      padding: const EdgeInsets.only(bottom: 3),
-                      child: Text("• ${e.key}: \$${e.value.toStringAsFixed(0)}", style: const TextStyle(fontSize: 12)),
-                    )),
+                    ...metodosPagoConteo.entries.map(
+                          (e) => Padding(
+                        padding: const EdgeInsets.only(bottom: 3),
+                        child: Text(
+                          "• ${e.key}: \$${e.value.toStringAsFixed(0)}",
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 12),
-                  const Text("🏆 Top Productos Vendidos:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueAccent)),
+                  const Text(
+                    "🏆 Top Productos Vendidos:",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: Colors.blueAccent,
+                    ),
+                  ),
                   const SizedBox(height: 6),
                   if (productosTop.isEmpty)
-                    const Text("Sin datos suficientes", style: TextStyle(fontSize: 11, color: Colors.grey))
+                    const Text(
+                      "Sin datos suficientes",
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    )
                   else
-                    ...productosTop.entries.take(3).map((e) => Padding(
-                      padding: const EdgeInsets.only(bottom: 3),
-                      child: Text("• ${e.key} (${e.value} unidades)", style: const TextStyle(fontSize: 12)),
-                    )),
+                    ...(() {
+                      final ranking = productosTop.entries.toList()
+                        ..sort((a, b) => b.value.compareTo(a.value));
+                      return ranking.take(5).map(
+                            (e) => Padding(
+                          padding: const EdgeInsets.only(bottom: 3),
+                          child: Text(
+                            "• ${e.key} (${e.value} unidades)",
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      );
+                    })(),
                 ] else ...[
+                  const SizedBox(height: 14),
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
@@ -126,9 +215,19 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text("🔒 Funcionalidad Exclusiva Pro", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.amber.shade900)),
+                        Text(
+                          "🔒 Funcionalidad Exclusiva Pro",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: Colors.amber.shade900,
+                          ),
+                        ),
                         const SizedBox(height: 4),
-                        const Text("Desbloquea el desglose por métodos de pago y el top de productos más vendidos activando la versión Pro.", style: TextStyle(fontSize: 11)),
+                        const Text(
+                          "Desbloquea el desglose por métodos de pago y el top de productos más vendidos activando la versión Pro.",
+                          style: TextStyle(fontSize: 11),
+                        ),
                       ],
                     ),
                   ),
@@ -146,12 +245,16 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
                 ProUpsellModal.mostrar(
                   context,
                   titulo: "🚀 Métricas Avanzadas Pro",
-                  mensaje: "Accede al desglose detallado de formas de pago y productos estrella para tomar decisiones gerenciales.",
+                  mensaje:
+                  "Accede al desglose detallado de formas de pago y productos estrella para tomar decisiones gerenciales.",
                 );
               },
               child: const Text("Desbloquear Pro"),
             ),
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text("Cerrar")),
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: const Text("Cerrar"),
+          ),
         ],
       ),
     );
