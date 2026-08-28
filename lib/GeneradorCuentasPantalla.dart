@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'database_helper.dart';
 import 'pdf_generator.dart';
 import 'ajustes_hub_pantalla.dart';
+import 'formato_cop.dart';
 import 'widgets/guia_facturar_tip.dart';
 import 'widgets/pro_upsell_modal.dart';
 
@@ -23,7 +24,7 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
   double _total = 0.0;
 
   bool _mostrarTutorial = false;
-  int _esPro = 0;
+  int? _esPro = DatabaseHelper.instance.esProEnMemoria;
 
   String _metodoSeleccionado = 'Efectivo';
   final List<String> _metodos = ['Efectivo', 'Nequi', 'Daviplata', 'Cuenta Bancaria'];
@@ -44,6 +45,8 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
   };
 
   final TextEditingController _observacionesController = TextEditingController();
+  final TextEditingController _filtroProductoController = TextEditingController();
+  String _filtroProducto = '';
 
   @override
   void initState() {
@@ -52,14 +55,9 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _cargarDatosYClonacion();
-  }
-
-  @override
   void dispose() {
     _observacionesController.dispose();
+    _filtroProductoController.dispose();
     super.dispose();
   }
 
@@ -90,6 +88,17 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
         _metodoSeleccionado = venta['metodo_pago'] ?? 'Efectivo';
         _tipoDocumentoSeleccionado = venta['tipo_documento'] ?? 'COMPROBANTE DE VENTA';
         _observacionesController.text = venta['observaciones'] ?? '';
+        _aplicarIva = (venta['aplicar_iva'] as num?)?.toInt() == 1;
+        if (venta['iva_porcentaje'] != null) {
+          final ivaClon = (venta['iva_porcentaje'] as num).toDouble();
+          if (ivaClon > 0) _ivaPorcentaje = ivaClon;
+        }
+        _retencionSeleccionada = (venta['retencion_tipo'] ?? 'Ninguna').toString();
+        if (!_opcionesRetenciones.containsKey(_retencionSeleccionada)) {
+          _retencionSeleccionada = 'Ninguna';
+        }
+        _retencionPorcentaje = (venta['retencion_porcentaje'] as num?)?.toDouble()
+            ?? (_opcionesRetenciones[_retencionSeleccionada] ?? 0.0);
 
         try {
           _clienteSeleccionado = _clientes.firstWhere((cli) => cli['id'] == venta['cliente_id']);
@@ -167,7 +176,7 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
 
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text("✅ Precio actualizado para esta factura"),
+                  content: Text("Precio actualizado para esta factura"),
                   backgroundColor: Colors.green,
                   duration: Duration(seconds: 2),
                 ),
@@ -184,10 +193,18 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
     return _carrito.where((item) => item['nombre_producto'] == nombreProducto).length;
   }
 
+  void _recalcularTotal() {
+    _total = 0.0;
+    for (final item in _carrito) {
+      _total += (item['precio_unitario'] as num).toDouble();
+    }
+    if (_total < 0) _total = 0.0;
+  }
+
   void _agregarAlCarrito(Map<String, dynamic> producto) {
     if (_clienteSeleccionado == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("⚠️ Selecciona un cliente primero")));
+          const SnackBar(content: Text("Selecciona un cliente primero")));
       return;
     }
     setState(() {
@@ -195,7 +212,7 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
         'nombre_producto': producto['nombre_producto'],
         'precio_unitario': (producto['precio_unitario'] as num),
       });
-      _total += (producto['precio_unitario'] as num).toDouble();
+      _recalcularTotal();
     });
   }
 
@@ -206,16 +223,77 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
     if (index != -1) {
       setState(() {
         _carrito.removeAt(index);
-        _total -= (producto['precio_unitario'] as num).toDouble();
-        if (_total < 0) _total = 0.0;
+        _recalcularTotal();
       });
     }
+  }
+
+  void _establecerCantidad(Map<String, dynamic> producto, int cantidad) {
+    if (_clienteSeleccionado == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Selecciona un cliente primero")));
+      return;
+    }
+    final nombre = producto['nombre_producto'];
+    final precio = (producto['precio_unitario'] as num);
+    final n = cantidad < 0 ? 0 : cantidad;
+
+    setState(() {
+      _carrito.removeWhere((item) => item['nombre_producto'] == nombre);
+      for (int i = 0; i < n; i++) {
+        _carrito.add({
+          'nombre_producto': nombre,
+          'precio_unitario': precio,
+        });
+      }
+      _recalcularTotal();
+    });
+  }
+
+  void _editarCantidad(Map<String, dynamic> producto) {
+    final actual = _contarEnCarrito(producto['nombre_producto']);
+    final controller = TextEditingController(text: actual.toString());
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text("Cantidad: ${producto['nombre_producto']}"),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: "Cantidad",
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (_) {
+            final n = int.tryParse(controller.text.trim()) ?? actual;
+            Navigator.pop(ctx);
+            _establecerCantidad(producto, n);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancelar"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final n = int.tryParse(controller.text.trim()) ?? actual;
+              Navigator.pop(ctx);
+              _establecerCantidad(producto, n);
+            },
+            child: const Text("Aplicar"),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _finalizarVenta() async {
     if (_clienteSeleccionado == null || _carrito.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("⚠️ Carrito vacío o cliente no seleccionado")));
+          content: Text("Carrito vacío o cliente no seleccionado")));
       return;
     }
 
@@ -239,6 +317,8 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
     String jsonProductos = jsonEncode(resumen.values.toList());
 
     try {
+      final numeroFactura = await DatabaseHelper.instance.asignarNumeroFactura();
+
       final nuevaVenta = {
         'cliente_id': _clienteSeleccionado!['id'],
         'total': _total,
@@ -247,17 +327,38 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
         'metodo_pago': _metodoSeleccionado,
         'tipo_documento': _tipoDocumentoSeleccionado,
         'observaciones': _observacionesController.text,
+        'aplicar_iva': _aplicarIva ? 1 : 0,
+        'iva_porcentaje': _aplicarIva ? _ivaPorcentaje : 0.0,
+        'retencion_tipo': _retencionSeleccionada,
+        'retencion_porcentaje': _retencionPorcentaje,
+        'numero_factura': numeroFactura,
       };
 
-      await PdfGenerator.generarFactura(
-          nuevaVenta,
-          _aplicarIva,
-          _ivaPorcentaje,
-          retencionTipo: _retencionSeleccionada,
-          retencionPorcentaje: _retencionPorcentaje
-      );
-
       await DatabaseHelper.instance.insertarVenta(nuevaVenta);
+
+      bool pdfOk = true;
+      try {
+        await PdfGenerator.generarFactura(
+            nuevaVenta,
+            _aplicarIva,
+            _ivaPorcentaje,
+            retencionTipo: _retencionSeleccionada,
+            retencionPorcentaje: _retencionPorcentaje
+        );
+      } catch (e) {
+        pdfOk = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "Venta $numeroFactura guardada. El PDF no se pudo generar: ${e.toString().replaceAll("Exception: ", "")}",
+              ),
+              backgroundColor: Colors.orange.shade800,
+              duration: const Duration(seconds: 6),
+            ),
+          );
+        }
+      }
 
       final ajustes = await DatabaseHelper.instance.obtenerAjustes();
 
@@ -274,11 +375,12 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
       });
 
       if (!mounted) return;
+      if (!pdfOk) return;
 
       if (ajustes.esPro == 0 && ajustes.logoPath.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text("✅ Venta registrada. 💡 Agrega tu logotipo corporativo en Ajustes."),
+            content: Text("Venta $numeroFactura registrada. Agrega tu logotipo corporativo en Ajustes."),
             backgroundColor: Colors.blue.shade900,
             duration: const Duration(seconds: 5),
             showCloseIcon: true,
@@ -297,7 +399,7 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("✅ Venta registrada y generada con éxito")));
+            SnackBar(content: Text("Venta $numeroFactura registrada y generada")));
       }
     } catch (e) {
       if (!mounted) return;
@@ -312,7 +414,7 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
   }
 
   Widget _buildBotonPro() {
-    if (_esPro == 1) return const SizedBox.shrink();
+    if (_esPro != 0) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(right: 6.0),
       child: Center(
@@ -356,13 +458,23 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
     );
   }
 
+  List<Map<String, dynamic>> get _prodsVisibles {
+    final q = _filtroProducto.trim().toLowerCase();
+    if (q.isEmpty) return _prods;
+    return _prods.where((p) {
+      return (p['nombre_producto'] ?? '').toString().toLowerCase().contains(q);
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     double valorIva = _aplicarIva ? (_total * (_ivaPorcentaje / 100)) : 0.0;
     double valorRetencion = (_retencionPorcentaje > 0) ? (_total * (_retencionPorcentaje / 100)) : 0.0;
     double totalFinalCalculado = _total + valorIva - valorRetencion;
+    final visibles = _prodsVisibles;
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: const Text("Nueva Cuenta"),
         actions: [
@@ -389,7 +501,6 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
         child: SingleChildScrollView(
           child: Column(
             children: [
-              // SECCIÓN SUPERIOR FIJA: Cliente y Tipo de Pago
               Container(
                 padding: const EdgeInsets.all(12.0),
                 color: Colors.white,
@@ -420,7 +531,7 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
                           ? [
                         const DropdownMenuItem<int>(
                           value: null,
-                          child: Text("⚠️ Sin clientes. Registra uno en Clientes"),
+                          child: Text("Sin clientes. Registra uno en Clientes"),
                         )
                       ]
                           : _clientes
@@ -482,7 +593,6 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
                 ),
               ),
 
-              // SECCIÓN COLAPSIBLE DE OPCIONES SECUNDARIAS
               ExpansionTile(
                 dense: true,
                 title: Text(
@@ -545,13 +655,13 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
                             children: [
                               Expanded(
                                 child: Text(
-                                  "👤 Client: ${_clienteSeleccionado?['nombre_empresa'] ?? 'Sin seleccionar'}",
+                                  "Cliente: ${_clienteSeleccionado?['nombre_empresa'] ?? 'Sin seleccionar'}",
                                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                               Text(
-                                "📦 Carrito: ${_carrito.length} ítems",
+                                "Carrito: ${_carrito.length} ítems",
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
@@ -568,30 +678,55 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
                 ],
               ),
 
-              // ENCABEZADO DE PRODUCTOS
               Container(
                 color: Colors.grey.shade100,
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: Row(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Column(
                   children: [
-                    const Icon(Icons.inventory_2_outlined, size: 18, color: Colors.blue),
-                    const SizedBox(width: 8),
-                    Text(
-                      "Productos (${_prods.length})",
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey),
+                    Row(
+                      children: [
+                        const Icon(Icons.inventory_2_outlined, size: 18, color: Colors.blue),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Productos (${visibles.length})",
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey),
+                        ),
+                        const Spacer(),
+                        Text(
+                          "Toca el número para cantidad",
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                        ),
+                      ],
                     ),
-                    const Spacer(),
-                    Text(
-                      "Toca + para agregar",
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _filtroProductoController,
+                      decoration: InputDecoration(
+                        hintText: "Buscar producto...",
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        suffixIcon: _filtroProducto.isEmpty
+                            ? null
+                            : IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () {
+                            _filtroProductoController.clear();
+                            setState(() => _filtroProducto = '');
+                          },
+                        ),
+                        border: const OutlineInputBorder(),
+                        filled: true,
+                        fillColor: Colors.white,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      ),
+                      onChanged: (v) => setState(() => _filtroProducto = v),
                     ),
                   ],
                 ),
               ),
               const Divider(height: 1, thickness: 1, color: Colors.grey),
 
-              // LISTA DE PRODUCTOS CON DESPLAZAMIENTO SEGURO
-              _prods.isEmpty
+              visibles.isEmpty
                   ? Padding(
                 padding: const EdgeInsets.symmetric(vertical: 30.0, horizontal: 24.0),
                 child: Column(
@@ -599,13 +734,15 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
                   children: [
                     Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey.shade400),
                     const SizedBox(height: 8),
-                    const Text(
-                      "No hay productos en el inventario",
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey),
+                    Text(
+                      _prods.isEmpty ? "No hay productos en el inventario" : "Sin resultados para la búsqueda",
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      "Agrega productos en la pestaña 'Productos' para seleccionarlos aquí.",
+                      _prods.isEmpty
+                          ? "Agrega productos en la pestaña 'Productos' para seleccionarlos aquí."
+                          : "Prueba con otro nombre.",
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                     ),
@@ -622,23 +759,24 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                itemCount: _prods.length,
+                itemCount: visibles.length,
                 itemBuilder: (c, i) {
-                  final producto = _prods[i];
+                  final producto = visibles[i];
                   final cantidadSeleccionada = _contarEnCarrito(producto['nombre_producto']);
+                  final indexOriginal = _prods.indexOf(producto);
 
                   return Card(
                     child: ListTile(
                       title: Text(producto['nombre_producto']),
                       subtitle: InkWell(
-                        onTap: () => _editarPrecioTemporalProducto(i),
+                        onTap: () => _editarPrecioTemporalProducto(indexOriginal >= 0 ? indexOriginal : i),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4.0),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                "\$${producto['precio_unitario']}",
+                                FormatoCop.pesos(producto['precio_unitario'] as num),
                                 style: TextStyle(
                                   color: Colors.blue.shade800,
                                   fontWeight: FontWeight.bold,
@@ -659,9 +797,15 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
                               icon: const Icon(Icons.remove_circle, color: Colors.red),
                               onPressed: () => _quitarDelCarrito(producto),
                             ),
-                            Text(
-                              '$cantidadSeleccionada',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            InkWell(
+                              onTap: () => _editarCantidad(producto),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                                child: Text(
+                                  '$cantidadSeleccionada',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                ),
+                              ),
                             ),
                           ],
                           IconButton(
@@ -679,7 +823,6 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
         ),
       ),
 
-      // BARRA INFERIOR FIJA DE TOTALES CON PROTECCIÓN CONTRA DESBORDAMIENTO HORIZONTAL
       bottomNavigationBar: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
@@ -707,20 +850,20 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
                       child: Row(
                         children: [
                           Text(
-                            "Subtotal: \$${_total.toStringAsFixed(0)}",
+                            "Subtotal: ${FormatoCop.pesos(_total)}",
                             style: TextStyle(fontSize: 10.5, color: Colors.grey.shade700),
                           ),
                           if (_aplicarIva) ...[
                             const SizedBox(width: 6),
                             Text(
-                              "IVA: +\$${valorIva.toStringAsFixed(0)}",
+                              "IVA: +${FormatoCop.pesos(valorIva)}",
                               style: TextStyle(fontSize: 10.5, color: Colors.blue.shade900, fontWeight: FontWeight.bold),
                             ),
                           ],
                           if (_retencionPorcentaje > 0) ...[
                             const SizedBox(width: 6),
                             Text(
-                              "Ret: -\$${valorRetencion.toStringAsFixed(0)}",
+                              "Ret: -${FormatoCop.pesos(valorRetencion)}",
                               style: const TextStyle(fontSize: 10.5, color: Colors.redAccent, fontWeight: FontWeight.bold),
                             ),
                           ],
@@ -732,7 +875,7 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        "TOTAL: \$${totalFinalCalculado.toStringAsFixed(0)}",
+                        "TOTAL: ${FormatoCop.pesos(totalFinalCalculado)}",
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 18,

@@ -11,6 +11,10 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
 
+  static int? _cacheEsPro;
+
+  int? get esProEnMemoria => _cacheEsPro;
+
   DatabaseHelper._init();
 
   Future<Database> get database async {
@@ -25,7 +29,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 23,
+      version: 24,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -85,6 +89,19 @@ class DatabaseHelper {
         await db.execute('ALTER TABLE ajustes_globales ADD COLUMN visto_tutorial_facturar INTEGER DEFAULT 0');
       } catch (_) {}
     }
+    if (oldVersion < 24) {
+      Future<void> addCol(String sql) async {
+        try {
+          await db.execute(sql);
+        } catch (_) {}
+      }
+
+      await addCol('ALTER TABLE ventas ADD COLUMN aplicar_iva INTEGER DEFAULT 0');
+      await addCol('ALTER TABLE ventas ADD COLUMN iva_porcentaje REAL DEFAULT 0.0');
+      await addCol('ALTER TABLE ventas ADD COLUMN retencion_tipo TEXT DEFAULT "Ninguna"');
+      await addCol('ALTER TABLE ventas ADD COLUMN retencion_porcentaje REAL DEFAULT 0.0');
+      await addCol('ALTER TABLE ventas ADD COLUMN numero_factura TEXT DEFAULT ""');
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -107,7 +124,12 @@ class DatabaseHelper {
         productos_detalle TEXT,
         metodo_pago TEXT DEFAULT 'Efectivo',
         tipo_documento TEXT DEFAULT 'COMPROBANTE DE VENTA',
-        observaciones TEXT DEFAULT ''
+        observaciones TEXT DEFAULT '',
+        aplicar_iva INTEGER DEFAULT 0,
+        iva_porcentaje REAL DEFAULT 0.0,
+        retencion_tipo TEXT DEFAULT 'Ninguna',
+        retencion_porcentaje REAL DEFAULT 0.0,
+        numero_factura TEXT DEFAULT ''
       )
     ''');
     await db.execute('''
@@ -163,7 +185,17 @@ class DatabaseHelper {
   Future<Map<String, dynamic>> obtenerDatosPago() async {
     final db = await database;
     final res = await db.query('ajustes_globales', where: 'id = 1');
-    return res.isNotEmpty ? res.first : {'nombre_negocio': 'Mi Negocio', 'iva_porcentaje': 19.0, 'es_pro': 0, 'intentos_clonacion_restantes': 3, 'prefijo_factura': 'FE'};
+    if (res.isNotEmpty) {
+      _cacheEsPro = (res.first['es_pro'] as num?)?.toInt() ?? 0;
+      return res.first;
+    }
+    return {
+      'nombre_negocio': 'Mi Negocio',
+      'iva_porcentaje': 19.0,
+      'es_pro': 0,
+      'intentos_clonacion_restantes': 3,
+      'prefijo_factura': 'FE'
+    };
   }
 
   Future<void> actualizarConfiguracion(String n, String nit, String dir, double iva, {String prefijo = 'FE'}) async {
@@ -183,6 +215,7 @@ class DatabaseHelper {
   }
 
   Future<void> actualizarEstadoPro(int esPro) async {
+    _cacheEsPro = esPro;
     final db = await database;
     await db.update('ajustes_globales', {'es_pro': esPro}, where: 'id = 1');
   }
@@ -301,6 +334,27 @@ class DatabaseHelper {
     await db.rawUpdate('UPDATE ajustes_globales SET consecutivo_factura = consecutivo_factura + 1 WHERE id = 1');
   }
 
+  Future<String> asignarNumeroFactura() async {
+    final db = await database;
+    final res = await db.query(
+      'ajustes_globales',
+      columns: ['consecutivo_factura', 'prefijo_factura'],
+      where: 'id = 1',
+    );
+    int consec = 1;
+    String prefijo = 'FE';
+    if (res.isNotEmpty) {
+      consec = res.first['consecutivo_factura'] as int? ?? 1;
+      final p = (res.first['prefijo_factura'] ?? 'FE').toString().trim().toUpperCase();
+      if (p.isNotEmpty) prefijo = p;
+    }
+    final numero = '$prefijo-${consec.toString().padLeft(4, '0')}';
+    await db.rawUpdate(
+      'UPDATE ajustes_globales SET consecutivo_factura = consecutivo_factura + 1 WHERE id = 1',
+    );
+    return numero;
+  }
+
   Future<bool> puedeVerVideoRecompensa() async {
     final db = await database;
     final resultado = await db.query('ajustes_globales', columns: ['video_usado'], where: 'id = 1');
@@ -321,7 +375,6 @@ class DatabaseHelper {
     );
   }
 
-  // CRUD CLIENTES
   Future<List<Cliente>> obtenerClientesModelo() async {
     final db = await database;
     final res = await db.query('clientes');
@@ -349,7 +402,6 @@ class DatabaseHelper {
     return await db.delete('clientes', where: 'id = ?', whereArgs: [id]);
   }
 
-  // CRUD PRODUCTOS
   Future<List<Producto>> obtenerProductosModelo() async {
     final db = await database;
     final res = await db.query('productos');
@@ -377,7 +429,6 @@ class DatabaseHelper {
     return await db.delete('productos', where: 'id = ?', whereArgs: [id]);
   }
 
-  // CRUD VENTAS
   Future<List<Venta>> obtenerHistorialVentasModelo() async {
     final db = await database;
     final res = await db.rawQuery('SELECT v.*, c.nombre_empresa, c.telefono as cliente_telefono FROM ventas v LEFT JOIN clientes c ON v.cliente_id = c.id ORDER BY v.fecha DESC');

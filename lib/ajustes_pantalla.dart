@@ -19,6 +19,7 @@ class _AjustesScreenState extends State<AjustesScreen> {
   final TextEditingController _dirController = TextEditingController();
   final TextEditingController _resolucionDianController = TextEditingController();
   final TextEditingController _prefijoController = TextEditingController();
+  final TextEditingController _ivaController = TextEditingController();
 
   String _logoPath = '';
   bool _isLoading = false;
@@ -37,6 +38,7 @@ class _AjustesScreenState extends State<AjustesScreen> {
     _dirController.dispose();
     _resolucionDianController.dispose();
     _prefijoController.dispose();
+    _ivaController.dispose();
     super.dispose();
   }
 
@@ -48,6 +50,8 @@ class _AjustesScreenState extends State<AjustesScreen> {
       _dirController.text = ajustes['direccion'] ?? '';
       _resolucionDianController.text = ajustes['resolucion_dian'] ?? '';
       _prefijoController.text = ajustes['prefijo_factura'] ?? 'FE';
+      final iva = (ajustes['iva_porcentaje'] as num?)?.toDouble() ?? 19.0;
+      _ivaController.text = iva == iva.roundToDouble() ? iva.toInt().toString() : iva.toString();
       _logoPath = ajustes['logo_path'] ?? '';
       _esPro = ajustes['es_pro'] ?? 0;
     });
@@ -56,7 +60,7 @@ class _AjustesScreenState extends State<AjustesScreen> {
   Future<void> _seleccionarYRecortarLogo() async {
     if (_esPro == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("🔒 El logotipo corporativo es exclusivo de la versión Pro")),
+        const SnackBar(content: Text("El logotipo corporativo es exclusivo de la versión Pro")),
       );
       return;
     }
@@ -110,12 +114,12 @@ class _AjustesScreenState extends State<AjustesScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("✅ Logotipo ajustado y seleccionado con éxito")),
+        const SnackBar(content: Text("Logotipo ajustado y seleccionado con éxito")),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Error al procesar imagen: $e"), backgroundColor: Colors.red),
+        SnackBar(content: Text("Error al procesar imagen: $e"), backgroundColor: Colors.red),
       );
     }
   }
@@ -125,7 +129,7 @@ class _AjustesScreenState extends State<AjustesScreen> {
       _logoPath = '';
     });
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("🗑️ Logotipo removido. Recuerda guardar cambios.")),
+      const SnackBar(content: Text("Logotipo removido. Recuerda guardar cambios.")),
     );
   }
 
@@ -136,11 +140,15 @@ class _AjustesScreenState extends State<AjustesScreen> {
       String prefijoFinal = _prefijoController.text.trim().toUpperCase();
       if (prefijoFinal.isEmpty) prefijoFinal = 'FE';
 
+      double ivaFinal = double.tryParse(_ivaController.text.trim().replaceAll(',', '.')) ?? 19.0;
+      if (ivaFinal < 0) ivaFinal = 0;
+      if (ivaFinal > 100) ivaFinal = 100;
+
       await DatabaseHelper.instance.actualizarConfiguracion(
         _nombreController.text,
         _nitController.text,
         _dirController.text,
-        19.0,
+        ivaFinal,
         prefijo: prefijoFinal,
       );
       await DatabaseHelper.instance.actualizarResolucionDian(_resolucionDianController.text);
@@ -150,7 +158,7 @@ class _AjustesScreenState extends State<AjustesScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("✅ Configuración guardada con éxito"),
+          content: Text("Configuración guardada con éxito"),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
         ),
@@ -159,7 +167,7 @@ class _AjustesScreenState extends State<AjustesScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Error: $e"), backgroundColor: Colors.red),
+        SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -183,6 +191,18 @@ class _AjustesScreenState extends State<AjustesScreen> {
               TextField(controller: _nitController, decoration: const InputDecoration(labelText: "NIT", border: OutlineInputBorder(), prefixIcon: Icon(Icons.badge))),
               const SizedBox(height: 15),
               TextField(controller: _dirController, decoration: const InputDecoration(labelText: "Dirección", border: OutlineInputBorder(), prefixIcon: Icon(Icons.location_on))),
+              const SizedBox(height: 15),
+              TextField(
+                controller: _ivaController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: "IVA por defecto (%)",
+                  hintText: "19",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.percent),
+                  helperText: "Se usa al activar IVA en una factura. Ej: 19",
+                ),
+              ),
               const SizedBox(height: 15),
               Row(
                 children: [
@@ -292,7 +312,7 @@ class _AjustesScreenState extends State<AjustesScreen> {
                 Padding(
                   padding: const EdgeInsets.only(top: 6.0),
                   child: Text(
-                    "🔒 Activa la versión Pro para recortar y habilitar tu logotipo en los recibos.",
+                    "Activa la versión Pro para recortar y habilitar tu logotipo en los recibos.",
                     style: TextStyle(fontSize: 12, color: Colors.orange.shade800, fontStyle: FontStyle.italic),
                   ),
                 ),

@@ -7,7 +7,12 @@ class Venta {
   final String metodoPago;
   final String tipoDocumento;
   final String observaciones;
-  final String? nombreEmpresa; // Nombre del cliente mapeado en JOIN
+  final String? nombreEmpresa;
+  final int aplicarIva;
+  final double ivaPorcentaje;
+  final String retencionTipo;
+  final double retencionPorcentaje;
+  final String numeroFactura;
 
   Venta({
     this.id,
@@ -19,6 +24,11 @@ class Venta {
     this.tipoDocumento = 'COMPROBANTE DE VENTA',
     this.observaciones = '',
     this.nombreEmpresa,
+    this.aplicarIva = 0,
+    this.ivaPorcentaje = 0.0,
+    this.retencionTipo = 'Ninguna',
+    this.retencionPorcentaje = 0.0,
+    this.numeroFactura = '',
   });
 
   factory Venta.fromMap(Map<String, dynamic> map) {
@@ -32,6 +42,11 @@ class Venta {
       tipoDocumento: map['tipo_documento'] ?? 'COMPROBANTE DE VENTA',
       observaciones: map['observaciones'] ?? '',
       nombreEmpresa: map['nombre_empresa'] as String?,
+      aplicarIva: (map['aplicar_iva'] as num?)?.toInt() ?? 0,
+      ivaPorcentaje: (map['iva_porcentaje'] as num?)?.toDouble() ?? 0.0,
+      retencionTipo: map['retencion_tipo'] ?? 'Ninguna',
+      retencionPorcentaje: (map['retencion_porcentaje'] as num?)?.toDouble() ?? 0.0,
+      numeroFactura: map['numero_factura'] ?? '',
     );
   }
 
@@ -45,6 +60,11 @@ class Venta {
       'metodo_pago': metodoPago,
       'tipo_documento': tipoDocumento,
       'observaciones': observaciones,
+      'aplicar_iva': aplicarIva,
+      'iva_porcentaje': ivaPorcentaje,
+      'retencion_tipo': retencionTipo,
+      'retencion_porcentaje': retencionPorcentaje,
+      'numero_factura': numeroFactura,
     };
   }
 }

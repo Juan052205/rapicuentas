@@ -57,7 +57,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   Future<void> _inicializarApp() async {
     await PlayIntegrityService.verificarLicenciaYPlayStore();
-    await DatabaseHelper.instance.database;
+    await DatabaseHelper.instance.obtenerDatosPago();
     await Future.delayed(const Duration(milliseconds: 2500));
 
     if (!mounted) return;
@@ -148,40 +148,42 @@ class NavegacionPrincipal extends StatefulWidget {
 }
 
 class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
-  int _indiceActual = 2; // Inicia en la pestaña Facturar
+  int _indiceActual = 2;
   bool _mostrarBienvenidaOverlay = false;
-
-  Widget _obtenerPantallaActual(int index) {
-    switch (index) {
-      case 0:
-        return const ClientesPantalla();
-      case 1:
-        return const ProductosPantalla();
-      case 2:
-        return const GeneradorCuentasPantalla();
-      case 3:
-        return const HistorialVentasPantalla();
-      case 4:
-        return const AjustesHubPantalla();
-      default:
-        return const GeneradorCuentasPantalla();
-    }
-  }
 
   @override
   void initState() {
     super.initState();
     _verificarPrimerInicioUnicaVez();
 
+    // Callback que se ejecuta cuando se compra o se restaura Pro
     PlayBillingService().inicializar(() {
       if (!mounted) return;
-      setState(() {});
+
+      // Mostramos el mensaje de éxito
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("🚀 ¡Versión Pro activada con éxito a través de Google Play!"),
           backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
         ),
       );
+
+      // Reinicio rápido de la app (cierra y abre la pantalla principal)
+      // Esto fuerza a que todas las pantallas se creen de nuevo y lean el nuevo estado Pro
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => const NavegacionPrincipal(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+            transitionDuration: const Duration(milliseconds: 400),
+          ),
+              (route) => false,
+        );
+      });
     });
   }
 
@@ -207,9 +209,19 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          _obtenerPantallaActual(_indiceActual),
+          IndexedStack(
+            index: _indiceActual,
+            children: [
+              const ClientesPantalla(),
+              const ProductosPantalla(),
+              const GeneradorCuentasPantalla(),
+              HistorialVentasPantalla(visible: _indiceActual == 3),
+              const AjustesHubPantalla(),
+            ],
+          ),
           if (_mostrarBienvenidaOverlay)
             AnimatedOpacity(
               opacity: _mostrarBienvenidaOverlay ? 1.0 : 0.0,

@@ -6,6 +6,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'database_helper.dart';
+import 'formato_cop.dart';
 
 class PdfGenerator {
   static const List<PdfColor> paletaPdfColores = [
@@ -20,6 +21,38 @@ class PdfGenerator {
     PdfColors.brown,
     PdfColors.cyan800,
   ];
+
+  static bool _flagIva(Map<String, dynamic> v) =>
+      (v['aplicar_iva'] as num?)?.toInt() == 1;
+
+  static double _ivaPct(Map<String, dynamic> v) =>
+      (v['iva_porcentaje'] as num?)?.toDouble() ?? 0.0;
+
+  static String _retTipo(Map<String, dynamic> v) =>
+      (v['retencion_tipo'] ?? 'Ninguna').toString();
+
+  static double _retPct(Map<String, dynamic> v) =>
+      (v['retencion_porcentaje'] as num?)?.toDouble() ?? 0.0;
+
+  static Future<void> generarFacturaDesdeRegistro(Map<String, dynamic> v) {
+    return generarFactura(
+      v,
+      _flagIva(v),
+      _ivaPct(v),
+      retencionTipo: _retTipo(v),
+      retencionPorcentaje: _retPct(v),
+    );
+  }
+
+  static Future<void> compartirFacturaPdfDesdeRegistro(Map<String, dynamic> v) {
+    return compartirFacturaPdf(
+      v,
+      _flagIva(v),
+      _ivaPct(v),
+      retencionTipo: _retTipo(v),
+      retencionPorcentaje: _retPct(v),
+    );
+  }
 
   static Future<void> _gestionarAnuncioYExportar(Function onExportar) async {
     final ajustes = await DatabaseHelper.instance.obtenerDatosPago();
@@ -75,10 +108,14 @@ class PdfGenerator {
       ) async {
     try {
       await _gestionarAnuncioYExportar(() async {
-        final pdf = await _construirDocumentoPdf(venta, aplicarImpuesto, ivaConfigurado, retencionTipo: retencionTipo, retencionPorcentaje: retencionPorcentaje);
+        final pdf = await _construirDocumentoPdf(
+          venta,
+          aplicarImpuesto,
+          ivaConfigurado,
+          retencionTipo: retencionTipo,
+          retencionPorcentaje: retencionPorcentaje,
+        );
         await Printing.layoutPdf(onLayout: (format) async => pdf.save());
-        // Incremento atómico post-compilación exitosa
-        await DatabaseHelper.instance.incrementarConsecutivo();
       });
     } catch (e) {
       debugPrint("Error de exportación: $e");
@@ -94,16 +131,52 @@ class PdfGenerator {
       ) async {
     try {
       await _gestionarAnuncioYExportar(() async {
-        final pdf = await _construirDocumentoPdf(venta, aplicarImpuesto, ivaConfigurado, retencionTipo: retencionTipo, retencionPorcentaje: retencionPorcentaje);
+        final pdf = await _construirDocumentoPdf(
+          venta,
+          aplicarImpuesto,
+          ivaConfigurado,
+          retencionTipo: retencionTipo,
+          retencionPorcentaje: retencionPorcentaje,
+        );
+        final numero = (venta['numero_factura'] ?? 'factura').toString();
+        final nombreArchivo = numero.isEmpty ? 'factura_recibo.pdf' : '$numero.pdf';
         await Printing.sharePdf(
           bytes: await pdf.save(),
-          filename: 'factura_recibo.pdf',
+          filename: nombreArchivo,
         );
       });
     } catch (e) {
       debugPrint("Error al compartir PDF: $e");
       rethrow;
     }
+  }
+
+  static pw.Widget _filaTotal(String etiqueta, String valor, {bool resaltar = false, PdfColor? color}) {
+    final c = color ?? PdfColors.grey800;
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(
+            etiqueta,
+            style: pw.TextStyle(
+              fontSize: resaltar ? 10 : 8,
+              fontWeight: resaltar ? pw.FontWeight.bold : pw.FontWeight.normal,
+              color: c,
+            ),
+          ),
+          pw.Text(
+            valor,
+            style: pw.TextStyle(
+              fontSize: resaltar ? 11 : 8,
+              fontWeight: pw.FontWeight.bold,
+              color: c,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   static Future<pw.Document> _construirDocumentoPdf(
@@ -160,8 +233,16 @@ class PdfGenerator {
       }
     }
 
-    int consecutivoFactura = await DatabaseHelper.instance.obtenerConsecutivoActual();
-    String numeroFacturaFormateado = "$prefijo-${consecutivoFactura.toString().padLeft(4, '0')}";
+    String numeroGuardado = (venta['numero_factura'] ?? '').toString().trim();
+    String numeroFacturaFormateado;
+    if (numeroGuardado.isNotEmpty) {
+      numeroFacturaFormateado = numeroGuardado;
+    } else if (venta['id'] != null) {
+      numeroFacturaFormateado = 'REF-${venta['id']}';
+    } else {
+      int consecutivoFactura = await DatabaseHelper.instance.obtenerConsecutivoActual();
+      numeroFacturaFormateado = "$prefijo-${consecutivoFactura.toString().padLeft(4, '0')}";
+    }
 
     double subtotal = (venta['total'] as num?)?.toDouble() ?? 0.0;
     double valorIva = aplicarImpuesto ? (subtotal * (ivaConfigurado / 100)) : 0.0;
@@ -170,6 +251,10 @@ class PdfGenerator {
 
     String tipoDoc = venta['tipo_documento'] ?? 'COMPROBANTE DE VENTA';
     String observaciones = venta['observaciones'] ?? '';
+    String fechaFormateada = FormatoCop.fechaCorta(venta['fecha']?.toString() ?? '');
+    if (fechaFormateada.trim().isEmpty) {
+      fechaFormateada = FormatoCop.fechaCorta(DateTime.now().toString());
+    }
 
     List<dynamic> productosRaw = [];
     try {
@@ -205,154 +290,316 @@ class PdfGenerator {
     if (cuentaAhorros.isNotEmpty) mediosDisponibles.add("Cta Ahorros: $cuentaAhorros");
 
     pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a6,
-        margin: const pw.EdgeInsets.all(10),
-        build: (pw.Context context) {
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a5,
+        margin: const pw.EdgeInsets.fromLTRB(22, 20, 22, 22),
+        header: (context) {
+          if (context.pageNumber == 1) return pw.SizedBox();
+          return pw.Container(
+            margin: const pw.EdgeInsets.only(bottom: 8),
+            padding: const pw.EdgeInsets.only(bottom: 6),
+            decoration: const pw.BoxDecoration(
+              border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5)),
+            ),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  nombreNegocio,
+                  style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: colorCorporativo),
+                ),
+                pw.Text(
+                  '$numeroFacturaFormateado  ·  pág. ${context.pageNumber}',
+                  style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+                ),
+              ],
+            ),
+          );
+        },
+        footer: (context) {
           return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: pw.CrossAxisAlignment.center,
-                children: [
-                  if (logoImage != null)
-                    pw.Container(
-                      width: 35,
-                      height: 35,
-                      child: pw.Image(logoImage),
-                    ),
-                  pw.Expanded(
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.center,
-                      children: [
-                        pw.Text(nombreNegocio,
-                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13, color: colorCorporativo)),
-                        pw.Text(tipoDoc,
-                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8, color: PdfColors.grey700)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              pw.SizedBox(height: 4),
+              pw.Divider(thickness: 0.4, color: PdfColors.grey400),
+              pw.SizedBox(height: 3),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text("NIT: ${ajustes['nit'] ?? 'No definido'}", style: const pw.TextStyle(fontSize: 7)),
-                  pw.Text("Factura: $numeroFacturaFormateado", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(
+                    esPro == 0
+                        ? 'Generado con Rapicuentas  ·  Versión gratuita'
+                        : 'Generado con Rapicuentas Pro',
+                    style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey600),
+                  ),
+                  pw.Text(
+                    'Pág. ${context.pageNumber} de ${context.pagesCount}',
+                    style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey600),
+                  ),
                 ],
               ),
-              pw.Text("Dir Negocio: ${ajustes['direccion'] ?? 'No definido'}", style: const pw.TextStyle(fontSize: 7)),
-              pw.Divider(thickness: 0.5),
-
-              pw.Text("CLIENTE: $nombreClientePdf", style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold)),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text("NIT/CC: $nitClientePdf", style: const pw.TextStyle(fontSize: 6.5)),
-                  if (telClientePdf.isNotEmpty)
-                    pw.Text("Tel: $telClientePdf", style: const pw.TextStyle(fontSize: 6.5)),
-                ],
-              ),
-              if (dirClientePdf.isNotEmpty)
-                pw.Text("Dir: $dirClientePdf", style: const pw.TextStyle(fontSize: 6.5)),
-
-              pw.Text("Método de Pago: $metodoPago$infoCuentaEspecifica", style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: colorCorporativo)),
-              pw.Divider(thickness: 1, color: colorCorporativo),
-
-              pw.Table.fromTextArray(
-                headers: const ['Producto', 'Cant', 'V. Unit', 'Total'],
-                data: productosProcesados.map((p) {
-                  String nombre = p['nombre'].toString();
-                  int cant = p['cant'] as int;
-                  double pUnit = (p['precio_unitario'] as num).toDouble();
-                  num totalProd = p['total'] as num;
-
-                  return [nombre, "$cant", "\$${pUnit.toInt()}", "\$${totalProd.toInt()}"];
-                }).toList(),
-                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5, color: PdfColors.white),
-                headerDecoration: pw.BoxDecoration(color: colorCorporativo),
-                cellStyle: const pw.TextStyle(fontSize: 6.5),
-                cellDecoration: (row, col, index) {
-                  if (estiloTabla == 0) {
-                    return row % 2 == 0
-                        ? const pw.BoxDecoration(color: PdfColors.grey200)
-                        : const pw.BoxDecoration(color: PdfColors.white);
-                  } else {
-                    return const pw.BoxDecoration(
-                      border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5)),
-                    );
-                  }
-                },
-                columnWidths: const {
-                  0: pw.FlexColumnWidth(1.8),
-                  1: pw.FlexColumnWidth(0.6),
-                  2: pw.FlexColumnWidth(1.1),
-                  3: pw.FlexColumnWidth(1.1),
-                },
-              ),
-
-              if (observaciones.isNotEmpty)
-                pw.Padding(
-                  padding: const pw.EdgeInsets.only(top: 4),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text("Observaciones:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 6.5)),
-                      pw.Text(observaciones, style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey800)),
-                    ],
-                  ),
-                ),
-              if (mediosDisponibles.isNotEmpty)
-                pw.Padding(
-                  padding: const pw.EdgeInsets.only(top: 4),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text("Datos de Pago / Transferencia:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 6, color: colorCorporativo)),
-                      pw.Text(mediosDisponibles.join(" | "), style: const pw.TextStyle(fontSize: 5.5, color: PdfColors.grey800)),
-                    ],
-                  ),
-                ),
-              pw.Spacer(),
-              pw.Container(
-                alignment: pw.Alignment.centerRight,
-                child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
-                  pw.Text("Subtotal: \$${subtotal.toInt()}", style: const pw.TextStyle(fontSize: 7.5)),
-                  if (aplicarImpuesto)
-                    pw.Text("IVA (${ivaConfigurado.toInt()}%): \$${valorIva.toInt()}", style: const pw.TextStyle(fontSize: 7.5)),
-                  if (retencionPorcentaje > 0)
-                    pw.Text("$retencionTipo (${retencionPorcentaje}%): -\$${valorRetencion.toInt()}", style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.red700)),
-                  pw.Divider(thickness: 0.5),
-                  pw.Text("TOTAL: \$${totalFinal.toInt()}",
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9.5, color: colorCorporativo)),
-                ]),
-              ),
-              pw.Divider(thickness: 0.5),
-              if (resolucionDian.isNotEmpty)
-                pw.Paragraph(
-                  text: "Resolución DIAN No. $resolucionDian",
-                  style: const pw.TextStyle(fontSize: 5.5, color: PdfColors.grey700),
-                ),
-              if (esPro == 0)
-                pw.Padding(
-                  padding: const pw.EdgeInsets.only(top: 2),
-                  child: pw.Center(
-                    child: pw.Text(
-                      "Generado con Rapicuentas - Versión Gratuita",
-                      style: const pw.TextStyle(fontSize: 5.5, color: PdfColors.grey600),
-                    ),
-                  ),
-                ),
-              pw.Center(
-                child: pw.Padding(
-                  padding: const pw.EdgeInsets.only(top: 2),
-                  child: pw.Text("Gracias por su preferencia", style: const pw.TextStyle(fontSize: 5.5, color: PdfColors.grey600)),
-                ),
-              )
             ],
           );
+        },
+        build: (context) {
+          return [
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (logoImage != null)
+                  pw.Container(
+                    width: 50,
+                    height: 50,
+                    margin: const pw.EdgeInsets.only(right: 10),
+                    child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+                  ),
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        nombreNegocio,
+                        style: pw.TextStyle(
+                          fontSize: 15,
+                          fontWeight: pw.FontWeight.bold,
+                          color: colorCorporativo,
+                        ),
+                      ),
+                      pw.SizedBox(height: 3),
+                      pw.Text(
+                        'NIT: ${ajustes['nit'] ?? 'No definido'}',
+                        style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey800),
+                      ),
+                      pw.Text(
+                        'Dir: ${ajustes['direccion'] ?? 'No definido'}',
+                        style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey800),
+                      ),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(width: 8),
+                pw.Container(
+                  width: 132,
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  decoration: pw.BoxDecoration(
+                    color: colorCorporativo,
+                    borderRadius: pw.BorderRadius.circular(4),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      pw.Text(
+                        tipoDoc,
+                        textAlign: pw.TextAlign.right,
+                        style: pw.TextStyle(
+                          fontSize: 6.5,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.white,
+                        ),
+                      ),
+                      pw.SizedBox(height: 4),
+                      pw.Text(
+                        numeroFacturaFormateado,
+                        style: pw.TextStyle(
+                          fontSize: 12,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.white,
+                        ),
+                      ),
+                      pw.SizedBox(height: 3),
+                      pw.Text(
+                        fechaFormateada,
+                        style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.white),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 12),
+            pw.Container(
+              width: double.infinity,
+              padding: const pw.EdgeInsets.all(9),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey100,
+                borderRadius: pw.BorderRadius.circular(4),
+                border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'CLIENTE',
+                    style: pw.TextStyle(
+                      fontSize: 7,
+                      fontWeight: pw.FontWeight.bold,
+                      color: colorCorporativo,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  pw.SizedBox(height: 3),
+                  pw.Text(
+                    nombreClientePdf,
+                    style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+                  ),
+                  pw.SizedBox(height: 2),
+                  pw.Text(
+                    'NIT/CC: $nitClientePdf${telClientePdf.isNotEmpty ? '    Tel: $telClientePdf' : ''}',
+                    style: const pw.TextStyle(fontSize: 8),
+                  ),
+                  if (dirClientePdf.isNotEmpty)
+                    pw.Text('Dir: $dirClientePdf', style: const pw.TextStyle(fontSize: 8)),
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    'Pago: $metodoPago$infoCuentaEspecifica',
+                    style: pw.TextStyle(
+                      fontSize: 8,
+                      fontWeight: pw.FontWeight.bold,
+                      color: colorCorporativo,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 10),
+            pw.Table.fromTextArray(
+              headers: const ['Producto', 'Cant', 'V. Unit', 'Total'],
+              data: productosProcesados.isEmpty
+                  ? [
+                ['Sin productos', '-', '-', '-']
+              ]
+                  : productosProcesados.map((p) {
+                String nombre = p['nombre'].toString();
+                int cant = p['cant'] as int;
+                double pUnit = (p['precio_unitario'] as num).toDouble();
+                num totalProd = p['total'] as num;
+                return [
+                  nombre,
+                  '$cant',
+                  FormatoCop.pesos(pUnit),
+                  FormatoCop.pesos(totalProd),
+                ];
+              }).toList(),
+              headerStyle: pw.TextStyle(
+                fontWeight: pw.FontWeight.bold,
+                fontSize: 8,
+                color: PdfColors.white,
+              ),
+              headerDecoration: pw.BoxDecoration(color: colorCorporativo),
+              cellStyle: const pw.TextStyle(fontSize: 8),
+              cellAlignments: {
+                0: pw.Alignment.centerLeft,
+                1: pw.Alignment.center,
+                2: pw.Alignment.centerRight,
+                3: pw.Alignment.centerRight,
+              },
+              cellPadding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+              cellDecoration: (row, col, index) {
+                if (estiloTabla == 0) {
+                  return row % 2 == 0
+                      ? const pw.BoxDecoration(color: PdfColors.grey200)
+                      : const pw.BoxDecoration(color: PdfColors.white);
+                } else {
+                  return const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5)),
+                  );
+                }
+              },
+              columnWidths: const {
+                0: pw.FlexColumnWidth(2.2),
+                1: pw.FlexColumnWidth(0.6),
+                2: pw.FlexColumnWidth(1.1),
+                3: pw.FlexColumnWidth(1.1),
+              },
+            ),
+            pw.SizedBox(height: 12),
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      if (observaciones.isNotEmpty) ...[
+                        pw.Text(
+                          'Observaciones',
+                          style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
+                        ),
+                        pw.SizedBox(height: 2),
+                        pw.Text(
+                          observaciones,
+                          style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey800),
+                        ),
+                        pw.SizedBox(height: 8),
+                      ],
+                      if (mediosDisponibles.isNotEmpty) ...[
+                        pw.Text(
+                          'Datos de pago / transferencia',
+                          style: pw.TextStyle(
+                            fontSize: 8,
+                            fontWeight: pw.FontWeight.bold,
+                            color: colorCorporativo,
+                          ),
+                        ),
+                        pw.SizedBox(height: 2),
+                        pw.Text(
+                          mediosDisponibles.join('\n'),
+                          style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey800),
+                        ),
+                        pw.SizedBox(height: 8),
+                      ],
+                      if (resolucionDian.isNotEmpty)
+                        pw.Text(
+                          'Resolución DIAN No. $resolucionDian',
+                          style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey700),
+                        ),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(width: 12),
+                pw.Container(
+                  width: 158,
+                  padding: const pw.EdgeInsets.all(9),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: colorCorporativo, width: 0.9),
+                    borderRadius: pw.BorderRadius.circular(4),
+                  ),
+                  child: pw.Column(
+                    children: [
+                      _filaTotal('Subtotal', FormatoCop.pesos(subtotal)),
+                      if (aplicarImpuesto)
+                        _filaTotal('IVA (${ivaConfigurado.toInt()}%)', FormatoCop.pesos(valorIva)),
+                      if (retencionPorcentaje > 0)
+                        _filaTotal(
+                          retencionTipo,
+                          FormatoCop.pesos(-valorRetencion),
+                          color: PdfColors.red700,
+                        ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                        child: pw.Divider(color: colorCorporativo, thickness: 0.8),
+                      ),
+                      _filaTotal(
+                        'TOTAL',
+                        FormatoCop.pesos(totalFinal),
+                        resaltar: true,
+                        color: colorCorporativo,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 16),
+            pw.Center(
+              child: pw.Text(
+                'Gracias por su preferencia',
+                style: pw.TextStyle(
+                  fontSize: 8,
+                  fontStyle: pw.FontStyle.italic,
+                  color: PdfColors.grey700,
+                ),
+              ),
+            ),
+          ];
         },
       ),
     );
