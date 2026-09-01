@@ -8,16 +8,21 @@ class ProductosPantalla extends StatefulWidget {
   const ProductosPantalla({super.key});
 
   @override
-  State<ProductosPantalla> createState() => _ProductosPantallaState();
+  State<ProductosPantalla> createState() => ProductosPantallaState();
 }
 
-class _ProductosPantallaState extends State<ProductosPantalla> {
+class ProductosPantallaState extends State<ProductosPantalla> {
   final _nombreController = TextEditingController();
   final _precioController = TextEditingController();
   final _busquedaController = TextEditingController();
   List<Producto> _productos = [];
   int? _esPro = DatabaseHelper.instance.esProEnMemoria;
   String _busqueda = '';
+
+  bool get tieneDatosSinGuardar {
+    return _nombreController.text.trim().isNotEmpty ||
+        _precioController.text.trim().isNotEmpty;
+  }
 
   @override
   void initState() {
@@ -49,7 +54,14 @@ class _ProductosPantallaState extends State<ProductosPantalla> {
     return _productos.where((p) => p.nombreProducto.toLowerCase().contains(q)).toList();
   }
 
+  void _ocultarTeclado() {
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
   Future<void> _guardarProducto() async {
+    _ocultarTeclado();
+    await Future.delayed(const Duration(milliseconds: 80));
+
     final nombre = _nombreController.text;
     final precio = double.tryParse(_precioController.text.replaceAll(',', '.')) ?? 0.0;
 
@@ -70,11 +82,18 @@ class _ProductosPantallaState extends State<ProductosPantalla> {
           content: Text("Producto guardado exitosamente"),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.fromLTRB(16, 0, 16, 16),
         ),
       );
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Ingresa un nombre y un precio válido mayor a 0"), backgroundColor: Colors.orange),
+        const SnackBar(
+          content: Text("Ingresa un nombre y un precio válido mayor a 0"),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.fromLTRB(16, 0, 16, 16),
+        ),
       );
     }
   }
@@ -106,6 +125,7 @@ class _ProductosPantallaState extends State<ProductosPantalla> {
           ),
           ElevatedButton(
             onPressed: () async {
+              FocusManager.instance.primaryFocus?.unfocus();
               final nuevoPrecio = double.tryParse(editPrecio.text.replaceAll(',', '.')) ?? 0.0;
               if (editNombre.text.isNotEmpty && nuevoPrecio > 0) {
                 final productoActualizado = Producto(
@@ -123,7 +143,11 @@ class _ProductosPantallaState extends State<ProductosPantalla> {
                 Navigator.pop(context);
                 _cargarProductos();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Producto actualizado con éxito"), backgroundColor: Colors.green),
+                  const SnackBar(
+                    content: Text("Producto actualizado con éxito"),
+                    backgroundColor: Colors.green,
+                    behavior: SnackBarBehavior.floating,
+                  ),
                 );
               }
             },
@@ -205,117 +229,170 @@ class _ProductosPantallaState extends State<ProductosPantalla> {
     );
   }
 
+  Widget _tarjetaProducto(Producto prod) {
+    final nombre = prod.nombreProducto;
+    final precio = prod.precioUnitario;
+
+    return Card(
+      elevation: 1,
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.green.shade50,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: Colors.green.shade200),
+          ),
+          child: Icon(Icons.shopping_bag_outlined, color: Colors.green.shade700, size: 20),
+        ),
+        title: Text(nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              FormatoCop.pesos(precio),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.blue.shade800),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit, size: 18, color: Colors.blue),
+              onPressed: () => _mostrarFormularioEdicion(prod),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+              onPressed: () => prod.id != null ? _confirmarEliminar(prod.id!) : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtrados = _productosFiltrados;
 
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: const Text("Gestión de Productos"),
         actions: [_buildBotonPro()],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50.withOpacity(0.5),
-                border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("Agregar Producto o Servicio", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey)),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _nombreController,
-                    decoration: const InputDecoration(
-                      labelText: "Nombre del Producto",
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.inventory_2_outlined),
-                      filled: true,
-                      fillColor: Colors.white,
-                      isDense: true,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _precioController,
-                    decoration: const InputDecoration(
-                      labelText: "Precio Unitario (\$)",
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.attach_money),
-                      filled: true,
-                      fillColor: Colors.white,
-                      isDense: true,
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 44,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade800,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        child: CustomScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          slivers: [
+            SliverToBoxAdapter(
+              child: Container(
+                padding: const EdgeInsets.all(16.0),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50.withOpacity(0.5),
+                  border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Agregar Producto o Servicio", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey)),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _nombreController,
+                      textInputAction: TextInputAction.next,
+                      onTapOutside: (_) => _ocultarTeclado(),
+                      decoration: const InputDecoration(
+                        labelText: "Nombre del Producto",
+                        hintText: "Ej: Libra de arroz",
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.inventory_2_outlined),
+                        filled: true,
+                        fillColor: Colors.white,
+                        isDense: true,
                       ),
-                      onPressed: _guardarProducto,
-                      icon: const Icon(Icons.add_box_outlined, size: 18),
-                      label: const Text("Guardar Producto", style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-              color: Colors.grey.shade100,
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.list_alt, size: 18, color: Colors.blue),
-                      const SizedBox(width: 8),
-                      Text(
-                        "Inventario Activo (${filtrados.length}${_busqueda.isEmpty ? '' : ' de ${_productos.length}'})",
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _precioController,
+                      decoration: const InputDecoration(
+                        labelText: "Precio Unitario (\$)",
+                        hintText: "Ej: 2500",
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.attach_money),
+                        filled: true,
+                        fillColor: Colors.white,
+                        isDense: true,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _busquedaController,
-                    decoration: InputDecoration(
-                      hintText: "Buscar producto...",
-                      prefixIcon: const Icon(Icons.search, size: 20),
-                      suffixIcon: _busqueda.isEmpty
-                          ? null
-                          : IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        onPressed: () {
-                          _busquedaController.clear();
-                          setState(() => _busqueda = '');
-                        },
-                      ),
-                      border: const OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                      isDense: true,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _guardarProducto(),
                     ),
-                    onChanged: (v) => setState(() => _busqueda = v),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue.shade800,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        onPressed: _guardarProducto,
+                        icon: const Icon(Icons.add_box_outlined, size: 18),
+                        label: const Text("Guardar Producto", style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            Expanded(
-              child: filtrados.isEmpty
-                  ? Center(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
+            SliverToBoxAdapter(
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                color: Colors.grey.shade100,
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.list_alt, size: 18, color: Colors.blue),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Inventario Activo (${filtrados.length}${_busqueda.isEmpty ? '' : ' de ${_productos.length}'})",
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _busquedaController,
+                      textInputAction: TextInputAction.search,
+                      onTapOutside: (_) => _ocultarTeclado(),
+                      decoration: InputDecoration(
+                        hintText: "Buscar producto...",
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        suffixIcon: _busqueda.isEmpty
+                            ? null
+                            : IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () {
+                            _busquedaController.clear();
+                            _ocultarTeclado();
+                            setState(() => _busqueda = '');
+                          },
+                        ),
+                        border: const OutlineInputBorder(),
+                        filled: true,
+                        fillColor: Colors.white,
+                        isDense: true,
+                      ),
+                      onChanged: (v) => setState(() => _busqueda = v),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (filtrados.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
@@ -326,57 +403,23 @@ class _ProductosPantallaState extends State<ProductosPantalla> {
                         Text(
                           _productos.isEmpty ? "No hay productos creados aún" : "Sin resultados para la búsqueda",
                           style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),
                   ),
                 ),
               )
-                  : ListView.builder(
+            else
+              SliverPadding(
                 padding: const EdgeInsets.all(8),
-                itemCount: filtrados.length,
-                itemBuilder: (c, i) {
-                  final prod = filtrados[i];
-                  String nombre = prod.nombreProducto;
-                  double precio = prod.precioUnitario;
-
-                  return Card(
-                    elevation: 1,
-                    margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    child: ListTile(
-                      leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade50,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.green.shade200),
-                        ),
-                        child: Icon(Icons.shopping_bag_outlined, color: Colors.green.shade700, size: 20),
-                      ),
-                      title: Text(nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            FormatoCop.pesos(precio),
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.blue.shade800),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.edit, size: 18, color: Colors.blue),
-                            onPressed: () => _mostrarFormularioEdicion(prod),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, size: 18, color: Colors.red),
-                            onPressed: () => prod.id != null ? _confirmarEliminar(prod.id!) : null,
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                        (c, i) => _tarjetaProducto(filtrados[i]),
+                    childCount: filtrados.length,
+                  ),
+                ),
               ),
-            ),
           ],
         ),
       ),

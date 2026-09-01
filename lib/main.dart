@@ -8,6 +8,7 @@ import 'historial_ventas_pantalla.dart';
 import 'ajustes_hub_pantalla.dart';
 import 'play_billing_service.dart';
 import 'play_integrity_service.dart';
+import 'widgets/guia_rapida_dialog.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -149,18 +150,18 @@ class NavegacionPrincipal extends StatefulWidget {
 
 class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
   int _indiceActual = 2;
-  bool _mostrarBienvenidaOverlay = false;
+  final GlobalKey<ClientesPantallaState> _clientesKey = GlobalKey<ClientesPantallaState>();
+  final GlobalKey<ProductosPantallaState> _productosKey = GlobalKey<ProductosPantallaState>();
+  final GlobalKey<GeneradorCuentasPantallaState> _facturarKey = GlobalKey<GeneradorCuentasPantallaState>();
 
   @override
   void initState() {
     super.initState();
     _verificarPrimerInicioUnicaVez();
 
-    // Callback que se ejecuta cuando se compra o se restaura Pro
     PlayBillingService().inicializar(() {
       if (!mounted) return;
 
-      // Mostramos el mensaje de éxito
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("🚀 ¡Versión Pro activada con éxito a través de Google Play!"),
@@ -169,8 +170,6 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
         ),
       );
 
-      // Reinicio rápido de la app (cierra y abre la pantalla principal)
-      // Esto fuerza a que todas las pantallas se creen de nuevo y lean el nuevo estado Pro
       Future.delayed(const Duration(milliseconds: 600), () {
         if (!mounted) return;
         Navigator.of(context).pushAndRemoveUntil(
@@ -191,143 +190,75 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
     bool mostrar = await DatabaseHelper.instance.debeMostrarBienvenida();
     if (mostrar) {
       await DatabaseHelper.instance.marcarBienvenidaVista();
-      Future.delayed(const Duration(milliseconds: 400), () {
+      Future.delayed(const Duration(milliseconds: 500), () {
         if (!mounted) return;
-        setState(() => _mostrarBienvenidaOverlay = true);
+        mostrarGuiaRapidaRapicuentas(context);
       });
     }
   }
 
-  void _cerrarBienvenida() {
-    setState(() => _mostrarBienvenidaOverlay = false);
+  void _mostrarGuiaAyuda() {
+    mostrarGuiaRapidaRapicuentas(context);
   }
 
-  void _mostrarGuiaAyuda() {
-    setState(() => _mostrarBienvenidaOverlay = true);
+  Future<void> _cambiarPestana(int index) async {
+    if (index == _indiceActual) return;
+
+    String? mensajePendiente;
+    if (_indiceActual == 0 && (_clientesKey.currentState?.tieneDatosSinGuardar ?? false)) {
+      mensajePendiente = "Tienes un cliente escrito que aún no has registrado. Regístralo con el botón azul para no perderlo.";
+    } else if (_indiceActual == 1 && (_productosKey.currentState?.tieneDatosSinGuardar ?? false)) {
+      mensajePendiente = "Tienes un producto escrito que aún no has guardado. Púlsalo en Guardar Producto para no perderlo.";
+    }
+
+    if (mensajePendiente != null) {
+      final irse = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text("Cambios sin guardar"),
+          content: Text(mensajePendiente!),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text("Seguir aquí"),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text("Salir de todos modos"),
+            ),
+          ],
+        ),
+      );
+      if (irse != true) return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _indiceActual = index;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      body: Stack(
+      body: IndexedStack(
+        index: _indiceActual,
         children: [
-          IndexedStack(
-            index: _indiceActual,
-            children: [
-              const ClientesPantalla(),
-              const ProductosPantalla(),
-              const GeneradorCuentasPantalla(),
-              HistorialVentasPantalla(visible: _indiceActual == 3),
-              const AjustesHubPantalla(),
-            ],
+          ClientesPantalla(key: _clientesKey),
+          ProductosPantalla(key: _productosKey),
+          GeneradorCuentasPantalla(
+            key: _facturarKey,
+            visible: _indiceActual == 2,
+            onAyuda: _mostrarGuiaAyuda,
           ),
-          if (_mostrarBienvenidaOverlay)
-            AnimatedOpacity(
-              opacity: _mostrarBienvenidaOverlay ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 300),
-              child: Container(
-                color: Colors.black54,
-                alignment: Alignment.center,
-                padding: const EdgeInsets.all(16),
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 420),
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.25),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.shade50,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(Icons.verified, color: Colors.blue, size: 24),
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Text(
-                                "Guía Rápida Rapicuentas",
-                                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.close, size: 20, color: Colors.grey),
-                              onPressed: _cerrarBienvenida,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          "Optimiza tu negocio y factura con nivel gerencial usando estas secciones clave:",
-                          style: TextStyle(fontSize: 13, color: Colors.grey),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildItemGuia(
-                          icon: Icons.people_outline,
-                          titulo: "1. Clientes",
-                          descripcion: "Registra la base de tus compradores o empresas frecuentes.",
-                        ),
-                        _buildItemGuia(
-                          icon: Icons.inventory_2_outlined,
-                          titulo: "2. Productos",
-                          descripcion: "Administra tu catálogo de productos y precios unitarios.",
-                        ),
-                        _buildItemGuia(
-                          icon: Icons.receipt_long_outlined,
-                          titulo: "3. Facturar",
-                          descripcion: "Selecciona cliente, productos y genera tu recibo PDF de inmediato.",
-                          destacado: true,
-                        ),
-                        _buildItemGuia(
-                          icon: Icons.history,
-                          titulo: "4. Historial",
-                          descripcion: "Administra, comparte o clona ventas pasadas.\n• Tip Pro: Toca 📊 para ver métricas avanzadas.",
-                          destacado: true,
-                        ),
-                        _buildItemGuia(
-                          icon: Icons.settings_outlined,
-                          titulo: "5. Ajustes",
-                          descripcion: "Configura datos de tu negocio, métodos de pago (Nequi/Daviplata) y diseño de recibos.",
-                        ),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue.shade800,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                            onPressed: _cerrarBienvenida,
-                            child: const Text("¡Entendido, a facturar!", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          HistorialVentasPantalla(visible: _indiceActual == 3),
+          const AjustesHubPantalla(),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: _indiceActual == 2
+          ? null
+          : FloatingActionButton(
         mini: true,
         backgroundColor: Colors.blue.shade800,
         foregroundColor: Colors.white,
@@ -335,48 +266,16 @@ class _NavegacionPrincipalState extends State<NavegacionPrincipal> {
         onPressed: _mostrarGuiaAyuda,
         child: const Icon(Icons.help_outline),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _indiceActual,
-        onDestinationSelected: (int index) {
-          setState(() {
-            _indiceActual = index;
-          });
-        },
+        onDestinationSelected: _cambiarPestana,
         destinations: const [
           NavigationDestination(icon: Icon(Icons.people_outlined), selectedIcon: Icon(Icons.people), label: 'Clientes'),
           NavigationDestination(icon: Icon(Icons.inventory_2_outlined), selectedIcon: Icon(Icons.inventory_2), label: 'Productos'),
           NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Facturar'),
           NavigationDestination(icon: Icon(Icons.history_outlined), selectedIcon: Icon(Icons.history), label: 'Historial'),
           NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Ajustes'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildItemGuia({required IconData icon, required String titulo, required String descripcion, bool destacado = false}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: destacado ? Colors.blue.shade50.withOpacity(0.5) : Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: destacado ? Colors.blue.shade200 : Colors.grey.shade200),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 20, color: Colors.blue.shade800),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(titulo, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
-                const SizedBox(height: 2),
-                Text(descripcion, style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700, height: 1.3)),
-              ],
-            ),
-          ),
         ],
       ),
     );

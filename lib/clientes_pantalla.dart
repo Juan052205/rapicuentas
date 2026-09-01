@@ -7,10 +7,10 @@ class ClientesPantalla extends StatefulWidget {
   const ClientesPantalla({super.key});
 
   @override
-  State<ClientesPantalla> createState() => _ClientesPantallaState();
+  State<ClientesPantalla> createState() => ClientesPantallaState();
 }
 
-class _ClientesPantallaState extends State<ClientesPantalla> {
+class ClientesPantallaState extends State<ClientesPantalla> {
   final _nombreController = TextEditingController();
   final _idController = TextEditingController();
   final _telefonoController = TextEditingController();
@@ -19,6 +19,13 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
   List<Cliente> _clientes = [];
   int? _esPro = DatabaseHelper.instance.esProEnMemoria;
   String _busqueda = '';
+
+  bool get tieneDatosSinGuardar {
+    return _nombreController.text.trim().isNotEmpty ||
+        _idController.text.trim().isNotEmpty ||
+        _telefonoController.text.trim().isNotEmpty ||
+        _direccionController.text.trim().isNotEmpty;
+  }
 
   @override
   void initState() {
@@ -56,7 +63,14 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
     }).toList();
   }
 
+  void _ocultarTeclado() {
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
   Future<void> _guardarCliente() async {
+    _ocultarTeclado();
+    await Future.delayed(const Duration(milliseconds: 80));
+
     if (_nombreController.text.isNotEmpty) {
       final nuevoCliente = Cliente(
         nombreEmpresa: _nombreController.text,
@@ -78,11 +92,18 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
           content: Text("Cliente registrado con éxito"),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.fromLTRB(16, 0, 16, 16),
         ),
       );
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Ingresa el nombre del cliente o empresa"), backgroundColor: Colors.orange),
+        const SnackBar(
+          content: Text("Ingresa el nombre del cliente o empresa"),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.fromLTRB(16, 0, 16, 16),
+        ),
       );
     }
   }
@@ -124,6 +145,7 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
           ),
           ElevatedButton(
             onPressed: () async {
+              FocusManager.instance.primaryFocus?.unfocus();
               if (editNombre.text.isNotEmpty) {
                 final clienteActualizado = Cliente(
                   id: cliente.id,
@@ -144,7 +166,11 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
                 Navigator.pop(context);
                 _cargarClientes();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Cliente actualizado con éxito"), backgroundColor: Colors.green),
+                  const SnackBar(
+                    content: Text("Cliente actualizado con éxito"),
+                    backgroundColor: Colors.green,
+                    behavior: SnackBarBehavior.floating,
+                  ),
                 );
               }
             },
@@ -231,7 +257,7 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
     final filtrados = _clientesFiltrados;
 
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: const Text("Gestión de Clientes"),
         actions: [_buildBotonPro()],
@@ -253,8 +279,10 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: _nombreController,
+                      textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
                         labelText: "Nombre / Empresa",
+                        hintText: "Ej: Distribuidora El Sol",
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.business_outlined),
                         filled: true,
@@ -265,8 +293,10 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: _idController,
+                      textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
                         labelText: "Identificación (NIT / CC)",
+                        hintText: "Ej: 900123456-1",
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.badge_outlined),
                         filled: true,
@@ -282,6 +312,7 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
                             controller: _telefonoController,
                             decoration: const InputDecoration(
                               labelText: "Teléfono (Opcional)",
+                              hintText: "3001234567",
                               border: OutlineInputBorder(),
                               prefixIcon: Icon(Icons.phone_outlined),
                               filled: true,
@@ -297,6 +328,7 @@ class _ClientesPantallaState extends State<ClientesPantalla> {
                             controller: _direccionController,
                             decoration: const InputDecoration(
                               labelText: "Dirección (Opcional)",
+                              hintText: "Calle 10 #5-20",
                               border: OutlineInputBorder(),
                               prefixIcon: Icon(Icons.location_on_outlined),
                               filled: true,

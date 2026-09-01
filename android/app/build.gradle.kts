@@ -17,8 +17,8 @@ android {
         applicationId = "com.jukari.rapicuentas"
         minSdk = flutter.minSdkVersion
         targetSdk = 35
-        versionCode = 11
-        versionName = "1.0.0"
+        versionCode = 13
+        versionName = "2.1.0"
         multiDexEnabled = true
     }
 

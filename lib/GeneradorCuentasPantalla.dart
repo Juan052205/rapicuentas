@@ -4,19 +4,28 @@ import 'database_helper.dart';
 import 'pdf_generator.dart';
 import 'ajustes_hub_pantalla.dart';
 import 'formato_cop.dart';
+import 'vista_previa_pdf_pantalla.dart';
 import 'widgets/guia_facturar_tip.dart';
+import 'widgets/guia_rapida_dialog.dart';
 import 'widgets/pro_upsell_modal.dart';
 
 class GeneradorCuentasPantalla extends StatefulWidget {
   final Map<String, dynamic>? ventaAClonar;
+  final bool visible;
+  final VoidCallback? onAyuda;
 
-  const GeneradorCuentasPantalla({super.key, this.ventaAClonar});
+  const GeneradorCuentasPantalla({
+    super.key,
+    this.ventaAClonar,
+    this.visible = true,
+    this.onAyuda,
+  });
 
   @override
-  State<GeneradorCuentasPantalla> createState() => _GeneradorCuentasPantallaState();
+  State<GeneradorCuentasPantalla> createState() => GeneradorCuentasPantallaState();
 }
 
-class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
+class GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
   List<Map<String, dynamic>> _prods = [];
   List<Map<String, dynamic>> _clientes = [];
   final List<Map<String, dynamic>> _carrito = [];
@@ -48,10 +57,21 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
   final TextEditingController _filtroProductoController = TextEditingController();
   String _filtroProducto = '';
 
+  bool get tieneDatosSinGuardar =>
+      _carrito.isNotEmpty || _clienteSeleccionado != null || _observacionesController.text.trim().isNotEmpty;
+
   @override
   void initState() {
     super.initState();
     _cargarDatosYClonacion();
+  }
+
+  @override
+  void didUpdateWidget(GeneradorCuentasPantalla oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.visible && !oldWidget.visible) {
+      _cargarDatosYClonacion();
+    }
   }
 
   @override
@@ -290,7 +310,23 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
     );
   }
 
+  Future<void> _abrirVistaPrevia(Map<String, dynamic> venta, String numeroFactura, {String? extra}) async {
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VistaPreviaPdfPantalla(
+          venta: venta,
+          mensajeCabecera: extra ??
+              "Venta $numeroFactura registrada. Usa compartir para enviarla o la impresora para guardar/imprimir.",
+        ),
+      ),
+    );
+  }
+
   Future<void> _finalizarVenta() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+
     if (_clienteSeleccionado == null || _carrito.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text("Carrito vacío o cliente no seleccionado")));
@@ -336,30 +372,6 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
 
       await DatabaseHelper.instance.insertarVenta(nuevaVenta);
 
-      bool pdfOk = true;
-      try {
-        await PdfGenerator.generarFactura(
-            nuevaVenta,
-            _aplicarIva,
-            _ivaPorcentaje,
-            retencionTipo: _retencionSeleccionada,
-            retencionPorcentaje: _retencionPorcentaje
-        );
-      } catch (e) {
-        pdfOk = false;
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                "Venta $numeroFactura guardada. El PDF no se pudo generar: ${e.toString().replaceAll("Exception: ", "")}",
-              ),
-              backgroundColor: Colors.orange.shade800,
-              duration: const Duration(seconds: 6),
-            ),
-          );
-        }
-      }
-
       final ajustes = await DatabaseHelper.instance.obtenerAjustes();
 
       setState(() {
@@ -375,31 +387,27 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
       });
 
       if (!mounted) return;
-      if (!pdfOk) return;
 
+      String extra = "Venta $numeroFactura registrada. Comparte o imprime desde aquí, sin volver al historial.";
       if (ajustes.esPro == 0 && ajustes.logoPath.isEmpty) {
+        extra = "Venta $numeroFactura registrada. Comparte o imprime aquí. En Ajustes puedes agregar tu logotipo (Pro).";
+      }
+
+      try {
+        await PdfGenerator.conAnuncioSiAplica(() async {
+          await _abrirVistaPrevia(nuevaVenta, numeroFactura, extra: extra);
+        });
+      } catch (e) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Venta $numeroFactura registrada. Agrega tu logotipo corporativo en Ajustes."),
-            backgroundColor: Colors.blue.shade900,
-            duration: const Duration(seconds: 5),
-            showCloseIcon: true,
-            closeIconColor: Colors.amber,
-            action: SnackBarAction(
-              label: "CONFIGURAR",
-              textColor: Colors.amber,
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AjustesHubPantalla()),
-                );
-              },
+            content: Text(
+              "Venta $numeroFactura guardada. El PDF no se pudo generar: ${e.toString().replaceAll("Exception: ", "")}",
             ),
+            backgroundColor: Colors.orange.shade800,
+            duration: const Duration(seconds: 6),
           ),
         );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Venta $numeroFactura registrada y generada")));
       }
     } catch (e) {
       if (!mounted) return;
@@ -480,9 +488,9 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
         actions: [
           _buildBotonPro(),
           IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: "Recargar Datos",
-            onPressed: _cargarDatosYClonacion,
+            icon: const Icon(Icons.help_outline),
+            tooltip: "Guía rápida",
+            onPressed: widget.onAyuda ?? () => mostrarGuiaRapidaRapicuentas(context),
           ),
           IconButton(
             icon: const Icon(Icons.settings),
@@ -745,12 +753,6 @@ class _GeneradorCuentasPantallaState extends State<GeneradorCuentasPantalla> {
                           : "Prueba con otro nombre.",
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                    ),
-                    const SizedBox(height: 12),
-                    ElevatedButton.icon(
-                      onPressed: _cargarDatosYClonacion,
-                      icon: const Icon(Icons.refresh, size: 16),
-                      label: const Text("Recargar Lista"),
                     ),
                   ],
                 ),

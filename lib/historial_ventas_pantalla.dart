@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:printing/printing.dart';
 import 'database_helper.dart';
 import 'pdf_generator.dart';
 import 'formato_cop.dart';
 import 'GeneradorCuentasPantalla.dart';
+import 'vista_previa_pdf_pantalla.dart';
 import 'widgets/pro_upsell_modal.dart';
 
 class HistorialVentasPantalla extends StatefulWidget {
@@ -42,6 +44,10 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
     super.dispose();
   }
 
+  void _ocultarTeclado() {
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
   Future<void> _cargarHistorial() async {
     final data = await DatabaseHelper.instance.obtenerHistorialVentas();
     final datosPago = await DatabaseHelper.instance.obtenerDatosPago();
@@ -68,6 +74,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
   }
 
   Future<void> _mostrarModuloAnalitico(BuildContext context) async {
+    _ocultarTeclado();
     final ajustes = await DatabaseHelper.instance.obtenerAjustes();
     bool esPro = ajustes.esPro == 1;
 
@@ -288,7 +295,40 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
     );
   }
 
+  /// Abre la vista previa in-app (imprimir + compartir) sin forzar un segundo video.
+  /// En cuentas free se muestra el anuncio intersticial una sola vez, igual que al finalizar.
+  Future<void> _verOImprimirPdf(Map<String, dynamic> v) async {
+    _ocultarTeclado();
+    try {
+      await PdfGenerator.conAnuncioSiAplica(() async {
+        if (!mounted) return;
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => VistaPreviaPdfPantalla(
+              venta: v,
+              mensajeCabecera:
+              "Usa el ícono de compartir para enviarla por WhatsApp u otra app. El de impresora sirve para imprimir o guardar PDF.",
+            ),
+          ),
+        );
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll("Exception: ", "")),
+          backgroundColor: Colors.redAccent,
+          duration: const Duration(seconds: 5),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        ),
+      );
+    }
+  }
+
   Future<void> _manejarCompartirPdf(Map<String, dynamic> v) async {
+    _ocultarTeclado();
     final ajustes = await DatabaseHelper.instance.obtenerAjustes();
     if (ajustes.esPro == 1) {
       await _compartirFacturaPdfDirecto(v);
@@ -299,7 +339,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
         builder: (c) => AlertDialog(
           title: const Text("Compartir Comprobante"),
           content: const Text(
-              "Las cuentas gratuitas pueden compartir documentos viendo un breve video o haciéndose Pro para envío inmediato sin anuncios."
+              "Las cuentas gratuitas pueden compartir documentos viendo un breve video o haciéndose Pro para envío inmediato sin anuncios.\n\nTambién puedes abrir el PDF (ícono verde) y compartir desde la vista previa después de un solo anuncio."
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(c), child: const Text("Cancelar")),
@@ -349,6 +389,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
                 duration: const Duration(seconds: 4),
                 showCloseIcon: true,
                 closeIconColor: Colors.amber,
+                behavior: SnackBarBehavior.floating,
                 action: SnackBarAction(
                   label: "VER PRO",
                   textColor: Colors.amber,
@@ -361,7 +402,10 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
         },
         onAdFailedToLoad: (LoadAdError error) {
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Acceso concedido por cortesía"))
+              const SnackBar(
+                content: Text("Acceso concedido por cortesía"),
+                behavior: SnackBarBehavior.floating,
+              )
           );
           _compartirFacturaPdfDirecto(venta);
         },
@@ -369,9 +413,17 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
     );
   }
 
+  /// Comparte el PDF sin pasar otra vez por el anuncio intersticial.
+  /// Se usa en Pro (sin anuncios) y en free DESPUÉS de ver el video recompensado.
   Future<void> _compartirFacturaPdfDirecto(Map<String, dynamic> v) async {
     try {
-      await PdfGenerator.compartirFacturaPdfDesdeRegistro(v);
+      final pdf = await PdfGenerator.construirDocumentoDesdeVenta(v);
+      final numero = (v['numero_factura'] ?? 'factura').toString().trim();
+      final nombreArchivo = numero.isEmpty ? 'factura_recibo.pdf' : '$numero.pdf';
+      await Printing.sharePdf(
+        bytes: await pdf.save(),
+        filename: nombreArchivo,
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -379,6 +431,8 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
           content: Text(e.toString().replaceAll("Exception: ", "")),
           backgroundColor: Colors.redAccent,
           duration: const Duration(seconds: 5),
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         ),
       );
     }
@@ -410,6 +464,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
                 duration: const Duration(seconds: 4),
                 showCloseIcon: true,
                 closeIconColor: Colors.amber,
+                behavior: SnackBarBehavior.floating,
                 action: SnackBarAction(
                   label: "VER PRO",
                   textColor: Colors.amber,
@@ -429,7 +484,10 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
         onAdFailedToLoad: (LoadAdError error) {
           DatabaseHelper.instance.otorgarIntentosExtraPorAd();
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Intento extra concedido por cortesía"))
+              const SnackBar(
+                content: Text("Intento extra concedido por cortesía"),
+                behavior: SnackBarBehavior.floating,
+              )
           );
         },
       ),
@@ -437,6 +495,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
   }
 
   Future<void> _ejecutarClonacion(Map<String, dynamic> v) async {
+    _ocultarTeclado();
     bool permitido = await DatabaseHelper.instance.intentarConsumirClonacion();
 
     if (!mounted) return;
@@ -496,6 +555,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
   }
 
   Future<void> _eliminarVenta(int id) async {
+    _ocultarTeclado();
     bool? confirm = await showDialog(
       context: context,
       builder: (c) => AlertDialog(
@@ -516,7 +576,12 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
       _cargarHistorial();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Venta eliminada"), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text("Venta eliminada"),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.fromLTRB(16, 0, 16, 16),
+        ),
       );
     }
   }
@@ -574,7 +639,7 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    resizeToAvoidBottomInset: false,
+    resizeToAvoidBottomInset: true,
     appBar: AppBar(
       title: const Text("Historial de Ventas"),
       actions: [
@@ -586,142 +651,147 @@ class _HistorialVentasPantallaState extends State<HistorialVentasPantalla> {
         ),
       ],
     ),
-    body: Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-          child: TextField(
-            controller: _busquedaController,
-            decoration: InputDecoration(
-              hintText: "Buscar por cliente, número o pago...",
-              prefixIcon: const Icon(Icons.search, size: 20),
-              suffixIcon: _busquedaController.text.isEmpty
-                  ? null
-                  : IconButton(
-                icon: const Icon(Icons.close, size: 18),
-                onPressed: () {
-                  _busquedaController.clear();
-                  setState(() => _aplicarFiltro(''));
-                },
-              ),
-              border: const OutlineInputBorder(),
-              isDense: true,
-              filled: true,
-              fillColor: Colors.white,
-            ),
-            onChanged: (v) => setState(() => _aplicarFiltro(v)),
-          ),
-        ),
-        Expanded(
-          child: _ventas.isEmpty
-              ? Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.receipt_long_outlined, size: 54, color: Colors.grey.shade400),
-                const SizedBox(height: 12),
-                Text("No hay ventas registradas aún", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
-              ],
-            ),
-          )
-              : _ventasFiltradas.isEmpty
-              ? Center(
-            child: Text("Sin resultados", style: TextStyle(color: Colors.grey.shade600)),
-          )
-              : ListView.builder(
-            padding: const EdgeInsets.all(8),
-            itemCount: _ventasFiltradas.length,
-            itemBuilder: (context, index) {
-              final v = _ventasFiltradas[index];
-              final numero = _etiquetaNumero(v);
-              final metodo = (v['metodo_pago'] ?? 'Efectivo').toString();
-              final fecha = FormatoCop.fechaCorta(v['fecha']?.toString() ?? '');
-              final total = FormatoCop.pesos((v['total'] as num?) ?? 0);
-
-              return Card(
-                elevation: 1,
-                margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                child: ListTile(
-                  isThreeLine: true,
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.blue.shade50,
-                    foregroundColor: Colors.blue.shade800,
-                    child: const Icon(Icons.receipt, size: 20),
-                  ),
-                  title: Text(
-                    v['nombre_empresa'] ?? 'Consumidor Final',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  subtitle: Text(
-                    "$numero  ·  $metodo\nTotal: $total  ·  $fecha",
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.picture_as_pdf, color: Colors.green),
-                        tooltip: "Ver / Imprimir PDF",
-                        onPressed: () async {
-                          try {
-                            await PdfGenerator.generarFacturaDesdeRegistro(v);
-                          } catch (e) {
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(e.toString().replaceAll("Exception: ", "")),
-                                backgroundColor: Colors.redAccent,
-                                duration: const Duration(seconds: 5),
-                              ),
-                            );
-                          }
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.share, color: Colors.teal),
-                        tooltip: "Enviar PDF",
-                        onPressed: () => _manejarCompartirPdf(v),
-                      ),
-                      PopupMenuButton<String>(
-                        icon: const Icon(Icons.more_vert, color: Colors.grey),
-                        onSelected: (value) {
-                          if (value == 'clonar') {
-                            _ejecutarClonacion(v);
-                          } else if (value == 'eliminar') {
-                            _eliminarVenta(v['id']);
-                          }
-                        },
-                        itemBuilder: (BuildContext context) => [
-                          const PopupMenuItem(
-                            value: 'clonar',
-                            child: Row(
-                              children: [
-                                Icon(Icons.copy_all, size: 18, color: Colors.blue),
-                                SizedBox(width: 8),
-                                Text("Clonar Factura", style: TextStyle(fontSize: 13)),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'eliminar',
-                            child: Row(
-                              children: [
-                                Icon(Icons.delete, size: 18, color: Colors.red),
-                                SizedBox(width: 8),
-                                Text("Eliminar", style: TextStyle(fontSize: 13, color: Colors.red)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+    body: SafeArea(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+            child: TextField(
+              controller: _busquedaController,
+              textInputAction: TextInputAction.search,
+              onTapOutside: (_) => _ocultarTeclado(),
+              decoration: InputDecoration(
+                hintText: "Buscar por cliente, número o pago...",
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _busquedaController.text.isEmpty
+                    ? null
+                    : IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: () {
+                    _busquedaController.clear();
+                    _ocultarTeclado();
+                    setState(() => _aplicarFiltro(''));
+                  },
                 ),
-              );
-            },
+                border: const OutlineInputBorder(),
+                isDense: true,
+                filled: true,
+                fillColor: Colors.white,
+              ),
+              onChanged: (v) => setState(() => _aplicarFiltro(v)),
+            ),
           ),
-        ),
-      ],
+          Expanded(
+            child: _ventas.isEmpty
+                ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.receipt_long_outlined, size: 54, color: Colors.grey.shade400),
+                  const SizedBox(height: 12),
+                  Text("No hay ventas registradas aún", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+                ],
+              ),
+            )
+                : _ventasFiltradas.isEmpty
+                ? Center(
+              child: Text("Sin resultados", style: TextStyle(color: Colors.grey.shade600)),
+            )
+                : ListView.builder(
+              padding: const EdgeInsets.all(8),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              itemCount: _ventasFiltradas.length,
+              itemBuilder: (context, index) {
+                final v = _ventasFiltradas[index];
+                final numero = _etiquetaNumero(v);
+                final metodo = (v['metodo_pago'] ?? 'Efectivo').toString();
+                final fecha = FormatoCop.fechaCorta(v['fecha']?.toString() ?? '');
+                final total = FormatoCop.pesos((v['total'] as num?) ?? 0);
+
+                return Card(
+                  elevation: 1,
+                  margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  child: ListTile(
+                    isThreeLine: true,
+                    visualDensity: VisualDensity.compact,
+                    contentPadding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.blue.shade50,
+                      foregroundColor: Colors.blue.shade800,
+                      child: const Icon(Icons.receipt, size: 20),
+                    ),
+                    title: Text(
+                      v['nombre_empresa'] ?? 'Consumidor Final',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      "$numero  ·  $metodo\nTotal: $total  ·  $fecha",
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.picture_as_pdf, color: Colors.green, size: 22),
+                          tooltip: "Ver, imprimir o compartir",
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                          padding: const EdgeInsets.all(6),
+                          onPressed: () => _verOImprimirPdf(v),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.share, color: Colors.teal, size: 22),
+                          tooltip: "Enviar PDF",
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                          padding: const EdgeInsets.all(6),
+                          onPressed: () => _manejarCompartirPdf(v),
+                        ),
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert, color: Colors.grey),
+                          tooltip: "Más opciones",
+                          padding: EdgeInsets.zero,
+                          onSelected: (value) {
+                            if (value == 'clonar') {
+                              _ejecutarClonacion(v);
+                            } else if (value == 'eliminar') {
+                              _eliminarVenta(v['id']);
+                            }
+                          },
+                          itemBuilder: (BuildContext context) => [
+                            const PopupMenuItem(
+                              value: 'clonar',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.copy_all, size: 18, color: Colors.blue),
+                                  SizedBox(width: 8),
+                                  Text("Clonar Factura", style: TextStyle(fontSize: 13)),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem(
+                              value: 'eliminar',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.delete, size: 18, color: Colors.red),
+                                  SizedBox(width: 8),
+                                  Text("Eliminar", style: TextStyle(fontSize: 13, color: Colors.red)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }

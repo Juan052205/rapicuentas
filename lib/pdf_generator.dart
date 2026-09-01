@@ -54,6 +54,18 @@ class PdfGenerator {
     );
   }
 
+  /// Construye el PDF sin anuncios ni diálogo del sistema.
+  /// Lo usa la vista previa in-app (imprimir + compartir en la misma pantalla).
+  static Future<pw.Document> construirDocumentoDesdeVenta(Map<String, dynamic> v) {
+    return _construirDocumentoPdf(
+      v,
+      _flagIva(v),
+      _ivaPct(v),
+      retencionTipo: _retTipo(v),
+      retencionPorcentaje: _retPct(v),
+    );
+  }
+
   static Future<void> _gestionarAnuncioYExportar(Function onExportar) async {
     final ajustes = await DatabaseHelper.instance.obtenerDatosPago();
     int esPro = ajustes['es_pro'] ?? 0;
@@ -151,6 +163,12 @@ class PdfGenerator {
     }
   }
 
+  /// Muestra el anuncio (si aplica) y luego ejecuta [onListo].
+  /// Sirve para abrir la vista previa in-app después de finalizar una venta.
+  static Future<void> conAnuncioSiAplica(Future<void> Function() onListo) async {
+    await _gestionarAnuncioYExportar(onListo);
+  }
+
   static pw.Widget _filaTotal(String etiqueta, String valor, {bool resaltar = false, PdfColor? color}) {
     final c = color ?? PdfColors.grey800;
     return pw.Padding(
@@ -179,6 +197,330 @@ class PdfGenerator {
     );
   }
 
+  static pw.Widget _encabezadoClasico({
+    required pw.MemoryImage? logoImage,
+    required String nombreNegocio,
+    required Map<String, dynamic> ajustes,
+    required PdfColor colorCorporativo,
+    required String tipoDoc,
+    required String numeroFacturaFormateado,
+    required String fechaFormateada,
+  }) {
+    return pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        if (logoImage != null)
+          pw.Container(
+            width: 50,
+            height: 50,
+            margin: const pw.EdgeInsets.only(right: 10),
+            child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+          ),
+        pw.Expanded(
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                nombreNegocio,
+                style: pw.TextStyle(
+                  fontSize: 15,
+                  fontWeight: pw.FontWeight.bold,
+                  color: colorCorporativo,
+                ),
+              ),
+              pw.SizedBox(height: 3),
+              pw.Text(
+                'NIT: ${ajustes['nit'] ?? 'No definido'}',
+                style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey800),
+              ),
+              pw.Text(
+                'Dir: ${ajustes['direccion'] ?? 'No definido'}',
+                style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey800),
+              ),
+            ],
+          ),
+        ),
+        pw.SizedBox(width: 8),
+        pw.Container(
+          width: 132,
+          padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          decoration: pw.BoxDecoration(
+            color: colorCorporativo,
+            borderRadius: pw.BorderRadius.circular(4),
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+            children: [
+              pw.Text(
+                tipoDoc,
+                textAlign: pw.TextAlign.right,
+                style: pw.TextStyle(
+                  fontSize: 6.5,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.white,
+                ),
+              ),
+              pw.SizedBox(height: 4),
+              pw.Text(
+                numeroFacturaFormateado,
+                style: pw.TextStyle(
+                  fontSize: 12,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.white,
+                ),
+              ),
+              pw.SizedBox(height: 3),
+              pw.Text(
+                fechaFormateada,
+                style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.white),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  static pw.Widget _encabezadoModerno({
+    required pw.MemoryImage? logoImage,
+    required String nombreNegocio,
+    required Map<String, dynamic> ajustes,
+    required PdfColor colorCorporativo,
+    required String tipoDoc,
+    required String numeroFacturaFormateado,
+    required String fechaFormateada,
+  }) {
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.fromLTRB(12, 12, 12, 12),
+      decoration: pw.BoxDecoration(
+        color: colorCorporativo,
+        borderRadius: pw.BorderRadius.circular(5),
+      ),
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          if (logoImage != null)
+            pw.Container(
+              width: 46,
+              height: 46,
+              margin: const pw.EdgeInsets.only(right: 10),
+              padding: const pw.EdgeInsets.all(3),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.white,
+                borderRadius: pw.BorderRadius.circular(4),
+              ),
+              child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+            ),
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  nombreNegocio,
+                  style: pw.TextStyle(
+                    fontSize: 15,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.white,
+                  ),
+                ),
+                pw.SizedBox(height: 3),
+                pw.Text(
+                  'NIT: ${ajustes['nit'] ?? 'No definido'}',
+                  style: const pw.TextStyle(fontSize: 8, color: PdfColors.white),
+                ),
+                pw.Text(
+                  'Dir: ${ajustes['direccion'] ?? 'No definido'}',
+                  style: const pw.TextStyle(fontSize: 8, color: PdfColors.white),
+                ),
+              ],
+            ),
+          ),
+          pw.SizedBox(width: 8),
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+            children: [
+              pw.Text(
+                tipoDoc,
+                style: pw.TextStyle(
+                  fontSize: 6.5,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.white,
+                ),
+              ),
+              pw.SizedBox(height: 3),
+              pw.Text(
+                numeroFacturaFormateado,
+                style: pw.TextStyle(
+                  fontSize: 13,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.white,
+                ),
+              ),
+              pw.SizedBox(height: 2),
+              pw.Text(
+                fechaFormateada,
+                style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.white),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _encabezadoElegante({
+    required pw.MemoryImage? logoImage,
+    required String nombreNegocio,
+    required Map<String, dynamic> ajustes,
+    required PdfColor colorCorporativo,
+    required String tipoDoc,
+    required String numeroFacturaFormateado,
+    required String fechaFormateada,
+  }) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            if (logoImage != null)
+              pw.Container(
+                width: 48,
+                height: 48,
+                margin: const pw.EdgeInsets.only(right: 10),
+                child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+              ),
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    nombreNegocio,
+                    style: pw.TextStyle(
+                      fontSize: 16,
+                      fontWeight: pw.FontWeight.bold,
+                      color: colorCorporativo,
+                    ),
+                  ),
+                  pw.SizedBox(height: 3),
+                  pw.Text(
+                    'NIT: ${ajustes['nit'] ?? 'No definido'}  ·  Dir: ${ajustes['direccion'] ?? 'No definido'}',
+                    style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+                  ),
+                ],
+              ),
+            ),
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              children: [
+                pw.Text(
+                  tipoDoc,
+                  style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey700),
+                ),
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  numeroFacturaFormateado,
+                  style: pw.TextStyle(
+                    fontSize: 13,
+                    fontWeight: pw.FontWeight.bold,
+                    color: colorCorporativo,
+                  ),
+                ),
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  fechaFormateada,
+                  style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+                ),
+              ],
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 8),
+        pw.Container(height: 1.6, color: colorCorporativo),
+      ],
+    );
+  }
+
+  static pw.Widget _cajaCliente({
+    required int estilo,
+    required PdfColor colorCorporativo,
+    required String nombreClientePdf,
+    required String nitClientePdf,
+    required String telClientePdf,
+    required String dirClientePdf,
+    required String metodoPago,
+    required String infoCuentaEspecifica,
+  }) {
+    final contenido = pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'CLIENTE',
+          style: pw.TextStyle(
+            fontSize: 7,
+            fontWeight: pw.FontWeight.bold,
+            color: colorCorporativo,
+            letterSpacing: 0.4,
+          ),
+        ),
+        pw.SizedBox(height: 3),
+        pw.Text(
+          nombreClientePdf,
+          style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+        ),
+        pw.SizedBox(height: 2),
+        pw.Text(
+          'NIT/CC: $nitClientePdf${telClientePdf.isNotEmpty ? '    Tel: $telClientePdf' : ''}',
+          style: const pw.TextStyle(fontSize: 8),
+        ),
+        if (dirClientePdf.isNotEmpty)
+          pw.Text('Dir: $dirClientePdf', style: const pw.TextStyle(fontSize: 8)),
+        pw.SizedBox(height: 4),
+        pw.Text(
+          'Pago: $metodoPago$infoCuentaEspecifica',
+          style: pw.TextStyle(
+            fontSize: 8,
+            fontWeight: pw.FontWeight.bold,
+            color: colorCorporativo,
+          ),
+        ),
+      ],
+    );
+
+    if (estilo == 2) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 4),
+        child: contenido,
+      );
+    }
+
+    if (estilo == 1) {
+      return pw.Container(
+        width: double.infinity,
+        padding: const pw.EdgeInsets.fromLTRB(10, 9, 9, 9),
+        decoration: pw.BoxDecoration(
+          border: pw.Border(
+            left: pw.BorderSide(color: colorCorporativo, width: 3),
+          ),
+          color: PdfColors.grey100,
+        ),
+        child: contenido,
+      );
+    }
+
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.all(9),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.grey100,
+        borderRadius: pw.BorderRadius.circular(4),
+        border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+      ),
+      child: contenido,
+    );
+  }
+
   static Future<pw.Document> _construirDocumentoPdf(
       Map<String, dynamic> venta,
       bool aplicarImpuesto,
@@ -189,7 +531,8 @@ class PdfGenerator {
     final ajustes = await DatabaseHelper.instance.obtenerDatosPago();
 
     int esPro = ajustes['es_pro'] ?? 0;
-    String nombreNegocio = ajustes['nombre_negocio'] ?? 'RECIBO';
+    String nombreNegocio = (ajustes['nombre_negocio'] ?? '').toString().trim();
+    if (nombreNegocio.isEmpty) nombreNegocio = 'RECIBO';
     String resolucionDian = ajustes['resolucion_dian'] ?? '';
     String metodoPago = venta['metodo_pago'] ?? 'Efectivo';
     String logoPath = ajustes['logo_path'] ?? '';
@@ -221,6 +564,7 @@ class PdfGenerator {
 
     int colorIndex = (ajustes['pdf_color_index'] as num?)?.toInt() ?? 0;
     int estiloTabla = (ajustes['pdf_estilo_tabla'] as num?)?.toInt() ?? 0;
+    if (estiloTabla < 0 || estiloTabla > 2) estiloTabla = 0;
     PdfColor colorCorporativo = paletaPdfColores[colorIndex.clamp(0, paletaPdfColores.length - 1)];
 
     pw.MemoryImage? logoImage;
@@ -289,6 +633,46 @@ class PdfGenerator {
     if (daviplata.isNotEmpty) mediosDisponibles.add("Daviplata: $daviplata");
     if (cuentaAhorros.isNotEmpty) mediosDisponibles.add("Cta Ahorros: $cuentaAhorros");
 
+    pw.Widget encabezado;
+    if (estiloTabla == 1) {
+      encabezado = _encabezadoModerno(
+        logoImage: logoImage,
+        nombreNegocio: nombreNegocio,
+        ajustes: ajustes,
+        colorCorporativo: colorCorporativo,
+        tipoDoc: tipoDoc,
+        numeroFacturaFormateado: numeroFacturaFormateado,
+        fechaFormateada: fechaFormateada,
+      );
+    } else if (estiloTabla == 2) {
+      encabezado = _encabezadoElegante(
+        logoImage: logoImage,
+        nombreNegocio: nombreNegocio,
+        ajustes: ajustes,
+        colorCorporativo: colorCorporativo,
+        tipoDoc: tipoDoc,
+        numeroFacturaFormateado: numeroFacturaFormateado,
+        fechaFormateada: fechaFormateada,
+      );
+    } else {
+      encabezado = _encabezadoClasico(
+        logoImage: logoImage,
+        nombreNegocio: nombreNegocio,
+        ajustes: ajustes,
+        colorCorporativo: colorCorporativo,
+        tipoDoc: tipoDoc,
+        numeroFacturaFormateado: numeroFacturaFormateado,
+        fechaFormateada: fechaFormateada,
+      );
+    }
+
+    final PdfColor headerTablaColor = estiloTabla == 2 ? PdfColors.grey200 : colorCorporativo;
+    final pw.TextStyle headerTablaStyle = pw.TextStyle(
+      fontWeight: pw.FontWeight.bold,
+      fontSize: 8,
+      color: estiloTabla == 2 ? colorCorporativo : PdfColors.white,
+    );
+
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a5,
@@ -341,123 +725,17 @@ class PdfGenerator {
         },
         build: (context) {
           return [
-            pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                if (logoImage != null)
-                  pw.Container(
-                    width: 50,
-                    height: 50,
-                    margin: const pw.EdgeInsets.only(right: 10),
-                    child: pw.Image(logoImage, fit: pw.BoxFit.contain),
-                  ),
-                pw.Expanded(
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(
-                        nombreNegocio,
-                        style: pw.TextStyle(
-                          fontSize: 15,
-                          fontWeight: pw.FontWeight.bold,
-                          color: colorCorporativo,
-                        ),
-                      ),
-                      pw.SizedBox(height: 3),
-                      pw.Text(
-                        'NIT: ${ajustes['nit'] ?? 'No definido'}',
-                        style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey800),
-                      ),
-                      pw.Text(
-                        'Dir: ${ajustes['direccion'] ?? 'No definido'}',
-                        style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey800),
-                      ),
-                    ],
-                  ),
-                ),
-                pw.SizedBox(width: 8),
-                pw.Container(
-                  width: 132,
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  decoration: pw.BoxDecoration(
-                    color: colorCorporativo,
-                    borderRadius: pw.BorderRadius.circular(4),
-                  ),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
-                    children: [
-                      pw.Text(
-                        tipoDoc,
-                        textAlign: pw.TextAlign.right,
-                        style: pw.TextStyle(
-                          fontSize: 6.5,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.white,
-                        ),
-                      ),
-                      pw.SizedBox(height: 4),
-                      pw.Text(
-                        numeroFacturaFormateado,
-                        style: pw.TextStyle(
-                          fontSize: 12,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.white,
-                        ),
-                      ),
-                      pw.SizedBox(height: 3),
-                      pw.Text(
-                        fechaFormateada,
-                        style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.white),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            pw.SizedBox(height: 12),
-            pw.Container(
-              width: double.infinity,
-              padding: const pw.EdgeInsets.all(9),
-              decoration: pw.BoxDecoration(
-                color: PdfColors.grey100,
-                borderRadius: pw.BorderRadius.circular(4),
-                border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
-              ),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text(
-                    'CLIENTE',
-                    style: pw.TextStyle(
-                      fontSize: 7,
-                      fontWeight: pw.FontWeight.bold,
-                      color: colorCorporativo,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                  pw.SizedBox(height: 3),
-                  pw.Text(
-                    nombreClientePdf,
-                    style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
-                  ),
-                  pw.SizedBox(height: 2),
-                  pw.Text(
-                    'NIT/CC: $nitClientePdf${telClientePdf.isNotEmpty ? '    Tel: $telClientePdf' : ''}',
-                    style: const pw.TextStyle(fontSize: 8),
-                  ),
-                  if (dirClientePdf.isNotEmpty)
-                    pw.Text('Dir: $dirClientePdf', style: const pw.TextStyle(fontSize: 8)),
-                  pw.SizedBox(height: 4),
-                  pw.Text(
-                    'Pago: $metodoPago$infoCuentaEspecifica',
-                    style: pw.TextStyle(
-                      fontSize: 8,
-                      fontWeight: pw.FontWeight.bold,
-                      color: colorCorporativo,
-                    ),
-                  ),
-                ],
-              ),
+            encabezado,
+            pw.SizedBox(height: estiloTabla == 1 ? 14 : 12),
+            _cajaCliente(
+              estilo: estiloTabla,
+              colorCorporativo: colorCorporativo,
+              nombreClientePdf: nombreClientePdf,
+              nitClientePdf: nitClientePdf,
+              telClientePdf: telClientePdf,
+              dirClientePdf: dirClientePdf,
+              metodoPago: metodoPago,
+              infoCuentaEspecifica: infoCuentaEspecifica,
             ),
             pw.SizedBox(height: 10),
             pw.Table.fromTextArray(
@@ -478,12 +756,8 @@ class PdfGenerator {
                   FormatoCop.pesos(totalProd),
                 ];
               }).toList(),
-              headerStyle: pw.TextStyle(
-                fontWeight: pw.FontWeight.bold,
-                fontSize: 8,
-                color: PdfColors.white,
-              ),
-              headerDecoration: pw.BoxDecoration(color: colorCorporativo),
+              headerStyle: headerTablaStyle,
+              headerDecoration: pw.BoxDecoration(color: headerTablaColor),
               cellStyle: const pw.TextStyle(fontSize: 8),
               cellAlignments: {
                 0: pw.Alignment.centerLeft,
@@ -493,14 +767,18 @@ class PdfGenerator {
               },
               cellPadding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 4),
               cellDecoration: (row, col, index) {
-                if (estiloTabla == 0) {
+                if (estiloTabla == 1) {
+                  return const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.4)),
+                  );
+                } else if (estiloTabla == 2) {
+                  return const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey200, width: 0.3)),
+                  );
+                } else {
                   return row % 2 == 0
                       ? const pw.BoxDecoration(color: PdfColors.grey200)
                       : const pw.BoxDecoration(color: PdfColors.white);
-                } else {
-                  return const pw.BoxDecoration(
-                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5)),
-                  );
                 }
               },
               columnWidths: const {
@@ -558,7 +836,11 @@ class PdfGenerator {
                 pw.Container(
                   width: 158,
                   padding: const pw.EdgeInsets.all(9),
-                  decoration: pw.BoxDecoration(
+                  decoration: estiloTabla == 2
+                      ? pw.BoxDecoration(
+                    border: pw.Border(top: pw.BorderSide(color: colorCorporativo, width: 1.6)),
+                  )
+                      : pw.BoxDecoration(
                     border: pw.Border.all(color: colorCorporativo, width: 0.9),
                     borderRadius: pw.BorderRadius.circular(4),
                   ),
